@@ -5,7 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"; /
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = "http://192.168.95.48:8000";
+const API_BASE_URL = "http://192.168.1.104:8000";
 const USER_MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`; 
 
 const PrescriptionReviewScreen = () => {

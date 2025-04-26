@@ -10,7 +10,7 @@ import DateTimePicker from "@react-native-community/datetimepicker"
 
 // --- Configuration ---
 // *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.95.48:8000" // Make sure this IP is correct and consistent
+const API_BASE_URL = "http://192.168.1.104:8000" // Make sure this IP is correct and consistent
 const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`
 // --- ---
 const parseTimeString = (timeString = "09:00") => {

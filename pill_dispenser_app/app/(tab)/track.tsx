@@ -17,7 +17,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API configuration - Use the same API_BASE_URL as your RefillScreen for consistency
-const API_BASE_URL = "http://192.168.95.48:8000";
+const API_BASE_URL = "http://192.168.1.104:8000";
 const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`;
 
 const MedicationStatusScreen = () => {
