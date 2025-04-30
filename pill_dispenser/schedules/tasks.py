@@ -22,19 +22,17 @@ def send_reminder_emails_task(self):
     AND signals the configured ESP32 to dispense.
     This task should run frequently via Celery Beat (e.g., every minute).
     """
-    # Use timezone-aware current time based on Django settings
     now = timezone.localtime()
     current_day_name = now.strftime('%A')
-    # Get the current time truncated to the minute (HH:MM), ignoring seconds/microseconds
     current_time_minute = now.time().replace(second=0, microsecond=0)
 
     logger.info(f"Running dispenser task check for schedules due at: {current_time_minute} on {current_day_name}")
 
     schedules_due_now = DosageSchedule.objects.filter(
-        day__iexact=current_day_name, # Case-insensitive match for day name
-        time=current_time_minute      # Exact match for HH:MM
+        day__iexact=current_day_name, 
+        time=current_time_minute     
     ).select_related(
-        'medication__user__profile' # Pre-fetch medication, user, AND user profile
+        'medication__user__profile' 
     )
 
     sent_reminders = 0
@@ -46,7 +44,6 @@ def send_reminder_emails_task(self):
 
     if not schedules_due_now.exists():
         logger.info("No medication schedules due at this exact minute.")
-        # Return early as there's nothing to process
         return "No schedules due now."
 
     for schedule in schedules_due_now:
@@ -54,25 +51,21 @@ def send_reminder_emails_task(self):
         user = None
         profile = None
         try:
-            # Access related objects efficiently due to select_related
             medication = schedule.medication
             user = medication.user
-            # Try accessing profile, handle if it might not exist (though signals should create it)
             profile = getattr(user, 'profile', None)
 
-            # --- 1. Send Email Reminder ---
-            # Check if user is active and has an email
+            # Checking if user is active and has an email
             if user.is_active and user.email:
                 try:
-                    # Construct the email subject and message
                     subject = f"Pill Reminder: Time for your {medication.name} dose!"
-                    dose_time_str = schedule.time.strftime("%I:%M %p") # Format time as e.g., 08:30 AM
+                    dose_time_str = schedule.time.strftime("%I:%M %p") 
                     message = (
                         f"Hi {user.username},\n\n"
                         f"It's time to take your dose of {medication.name} ({schedule.amount} units) "
                         f"scheduled for {dose_time_str} today ({schedule.day}).\n\n"
                         f"Current Stock: {medication.stock}\n\n"
-                        f"Best regards,\nYour Medimate App" # Or your app name
+                        f"Best regards,\nYour Medimate App" 
                     )
 
                     logger.debug(f"Attempting medication reminder email to {user.email} for schedule ID {schedule.id}")
@@ -90,38 +83,34 @@ def send_reminder_emails_task(self):
             else:
                 logger.warning(f"Skipping reminder email for schedule {schedule.id}. User {user.username} is inactive or has no email.")
 
-            # --- 2. Signal ESP32 ---
+            #Signaling ESP32
             esp_ip = getattr(profile, 'esp32_ip_address', None) if profile else None
             dispenser_slot = getattr(medication, 'dispenser_slot', None)
 
             if esp_ip and dispenser_slot is not None:
                 try:
-                    # Construct the URL (adjust '/dispense' and 'slot' parameter if your ESP32 code expects different)
                     esp_url = f"http://{esp_ip}/dispense"
                     params = {'slot': dispenser_slot}
                     logger.debug(f"Attempting to signal ESP32 at {esp_url} with params {params} for schedule ID {schedule.id}")
 
-                    # Store current stock for event tracking
                     stock_before = medication.stock
-                    
-                    # Send GET request with timeout
-                    response = requests.get(esp_url, params=params, timeout=10) # 10-second timeout
-                    response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-                    
-                    # Get response content for event tracking
-                    esp32_response = response.text[:200]  # Limit text size to avoid db issues
+                
+                    response = requests.get(esp_url, params=params, timeout=10) 
+                    response.raise_for_status() 
+                 
+                    esp32_response = response.text[:200]  
                     
                     logger.info(f"Successfully signaled ESP32 at {esp_ip} for slot {dispenser_slot} (Schedule ID: {schedule.id}). Status: {response.status_code}")
                     sent_esp_signals += 1
                     
-                    # --- 3. UPDATE STOCK COUNT AFTER SUCCESSFUL DISPENSE ---
+                    # updating stock count after successfull dispense
                     if medication.stock > 0:
                         medication.stock -= 1
                         medication.save()
                         stock_after = medication.stock
                         logger.info(f"Decreased stock of '{medication.name}' to {medication.stock} after successful dispense.")
                         
-                        # --- 4. CREATE MEDICATION EVENT RECORD ---
+                        # creating medication event record
                         try:
                             event = MedicationEvent.objects.create(
                                 medication=medication,
@@ -369,47 +358,4 @@ def send_single_reminder(self, user_id):
         
 
 
-
-@shared_task
-def dispense_scheduled_medications():
-    now = timezone.localtime()
-    today = now.strftime("%A")
-    current_time = now.time().replace(second=0, microsecond=0)
-
-    matching_schedules = DosageSchedule.objects.filter(day=today, time=current_time)
-
-    sent_esp_signals = 0
-
-    for schedule in matching_schedules:
-        medication = schedule.medication
-        user = medication.user
-
-        esp_ip = user.profile.esp32_ip_address
-        dispenser_slot = medication.dispenser_slot
-
-        if not dispenser_slot or not esp_ip:
-            logger.warning(f"Missing dispenser slot or ESP32 IP for {medication}. Skipping.")
-            continue
-
-        try:
-            response = requests.post(
-                f"http://{esp_ip}/dispense",
-                json={"slot": dispenser_slot, "amount": schedule.amount},
-                timeout=5
-            )
-            if response.status_code == 200:
-                logger.info(f"✅ Successfully signaled ESP32 at {esp_ip} for slot {dispenser_slot} (Schedule ID: {schedule.id}). Status: {response.status_code}")
-                sent_esp_signals += 1
-
-                if medication.stock > 0:
-                    medication.stock -= 1
-                    medication.save()
-                    logger.info(f"Decreased stock of '{medication.name}' to {medication.stock} after successful dispense.")
-                else:
-                    logger.warning(f"Stock of '{medication.name}' is already 0. Not decrementing further.")
-            else:
-                logger.error(f"❌ Failed to signal ESP32 for {medication}. Status code: {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"❌ Error signaling ESP32 for {medication}: {e}")
-
-    logger.info(f"ESP signals sent: {sent_esp_signals}")
+ 

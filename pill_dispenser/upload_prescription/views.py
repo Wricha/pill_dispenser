@@ -117,8 +117,7 @@ def process_prescription(request):
         # Initialize Roboflow
         try:
             rf = Roboflow(api_key=settings.ROBOFLOW_API_KEY)
-            # Make sure project/workspace names are correct
-            project = rf.workspace().project("prescription-v2-6q5tz")
+            project = rf.workspace("richa-kl0tw").project("prescription-v2-6q5tz")
             model = project.version(1).model
 
             # Predict using the saved debug file path (or could try sending bytes if supported)

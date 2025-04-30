@@ -5,6 +5,7 @@ from django.db.models import UniqueConstraint, Max
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+
 class Medication(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -42,23 +43,19 @@ class UserProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='profile' # Allows access via user.profile
+        related_name='profile' 
     )
-    # Store the IP address for the user's ESP32
     esp32_ip_address = models.GenericIPAddressField(
     verbose_name="ESP32 IP Address",
     protocol='IPv4',
     blank=True,
     null=True,
-    default="192.168.95.250"  
+    default="192.168.1.86"  
 )
-
-    # Add any other profile fields you might need
 
     def __str__(self):
         return f"Profile for {self.user.username}"
 
-# Optional: Automatically create UserProfile when a User is created
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
@@ -66,11 +63,9 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def save_user_profile(sender, instance, **kwargs):
-    # Ensure profile exists before trying to save
     if hasattr(instance, 'profile'):
         instance.profile.save()
     else:
-        # Handle case where profile might not have been created yet
         UserProfile.objects.get_or_create(user=instance)
 
 # Add this to your models.py
@@ -94,8 +89,8 @@ class MedicationEvent(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     amount = models.FloatField()
     success = models.BooleanField(default=True)
-    
-    # You might want these optional fields for more detailed tracking
+
+
     stock_before = models.IntegerField(null=True, blank=True)
     stock_after = models.IntegerField(null=True, blank=True)
     esp32_response = models.TextField(null=True, blank=True)

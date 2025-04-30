@@ -4,7 +4,7 @@ import axios from 'axios';
 // Newer projects typically use: import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AsyncStorage} from 'react-native';
 
-const API_URL = 'http://192.168.1.104:8000/auth/api/'; // <--- CORRECT IP and Base Path?
+const API_URL = 'http://192.168.1.67:8000/auth/api/'; // <--- CORRECT IP and Base Path?
 
 export const registerUser = async (username, email, password, passwordConfirmation) => {
 
@@ -27,7 +27,7 @@ export const registerUser = async (username, email, password, passwordConfirmati
 export const loginUser = async (username, password) => {
 
   try {
-    const loginResponse = await axios.post(`http://192.168.1.104:8000/api/token/`, { 
+    const loginResponse = await axios.post(`http://192.168.1.67:8000/api/token/`, { 
        username,
        password
      });

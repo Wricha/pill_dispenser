@@ -16,7 +16,7 @@ export const Login = ({navigation}) => {
 
       setLoading(true); 
       try {
-        const res = await axios.post('http://192.168.1.104:8000/auth/api/token/', { 
+        const res = await axios.post('http://192.168.1.67:8000/auth/api/token/', { 
           username,
           password,
         });

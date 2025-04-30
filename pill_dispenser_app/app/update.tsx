@@ -8,7 +8,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'; // <-- Impo
 
 // --- Configuration ---
 // *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.95.48:8000"; // Make sure this IP is correct and consistent
+const API_BASE_URL = "http://192.168.1.67:8000"; // Make sure this IP is correct and consistent
 const MEDICATIONS_ENDPOINT_BASE = `${API_BASE_URL}/api/medications/`; // Base for individual meds
 // --- ---
 

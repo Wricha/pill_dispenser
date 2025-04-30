@@ -10,7 +10,7 @@ import DateTimePicker from "@react-native-community/datetimepicker"
 
 // --- Configuration ---
 // *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.1.104:8000" // Make sure this IP is correct and consistent
+const API_BASE_URL = "http://192.168.1.67:8000" // Make sure this IP is correct and consistent
 const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`
 // --- ---
 const parseTimeString = (timeString = "09:00") => {
@@ -31,42 +31,33 @@ const formatTime = (date) => {
 }
 
 const MedicationDetailScreen = () => {
-  // Removed navigation prop if using expo-router
   const router = useRouter()
 
-  // --- State Variables ---
   const [medicineName, setMedicineName] = useState("")
-  // Use full day names consistent with backend signals.py
   const [selectedDays, setSelectedDays] = useState([])
   const [dosages, setDosages] = useState([
-    // Provide unique IDs, perhaps using Date.now() or a UUID library when adding new ones
     { id: Date.now(), amount: 1, time: "09:00" },
   ])
-  const [stock, setStock] = useState(10) // Sensible defaults
-  const [reminder, setReminder] = useState(5) // Sensible defaults (e.g., 5 minutes)
+  const [stock, setStock] = useState(10) 
+  const [reminder, setReminder] = useState(5) 
   const [isLoading, setIsLoading] = useState(false)
-  const [slotNumber, setSlotNumber] = useState(1) // Default slot
+  const [slotNumber, setSlotNumber] = useState(1) 
   const [showPicker, setShowPicker] = useState(false)
-  const [pickerDate, setPickerDate] = useState(new Date()) // Holds the date/time for the picker
-  const [editingDosageIndex, setEditingDosageIndex] = useState(-1) // Index of dosage being edited
+  const [pickerDate, setPickerDate] = useState(new Date()) 
+  const [editingDosageIndex, setEditingDosageIndex] = useState(-1) 
 
-  // --- Handlers ---
   const onSave = async () => {
     setIsLoading(true)
-
-    // 1. Get Auth Token and User ID
     let token = null
     let userId = null
     try {
       token = await AsyncStorage.getItem("accessToken")
-      // ** ASSUMPTION: You stored the user's ID as 'userId' during/after login **
-      // If not, you might need to fetch user details using the token first.
       const storedUserId = await AsyncStorage.getItem("userId")
-      userId = storedUserId ? Number.parseInt(storedUserId, 10) : null // Convert stored ID string to number
+      userId = storedUserId ? Number.parseInt(storedUserId, 10) : null 
 
       if (!token || !userId) {
         Alert.alert("Authentication Error", "Could not find user session. Please log in again.")
-        router.replace("/login") // Redirect to login
+        router.replace("/login") 
         setIsLoading(false)
         return
       }
@@ -77,11 +68,10 @@ const MedicationDetailScreen = () => {
       return
     }
 
-    // 2. Prepare Data Payload (including user ID)
     const data = {
       name: medicineName,
-      selected_days: selectedDays, // Send full day names
-      dosages: dosages.map((d) => ({ amount: d.amount, time: d.time })), // Send only needed data, ensure time format is HH:MM
+      selected_days: selectedDays, 
+      dosages: dosages.map((d) => ({ amount: d.amount, time: d.time })), 
       stock: stock,
       reminder: reminder,
       user: userId,
@@ -104,42 +94,63 @@ const MedicationDetailScreen = () => {
       setIsLoading(false)
       return
     }
-    // Add more validation as needed (time format, amounts > 0 etc.)
-
-    // 3. Prepare Request Configuration (with Auth Header)
+    
     const config = {
       headers: {
-        Authorization: `Bearer ${token}`, // Use Bearer for Simple JWT
-        "Content-Type": "application/json", // Explicitly set content type
+        Authorization: `Bearer ${token}`, // Using Bearer for Simple JWT
+        "Content-Type": "application/json",
       },
     }
 
-    // 4. Make Authenticated API Call
+    // Check if slot is already assigned
+    try {
+      const response = await axios.get(MEDICATIONS_ENDPOINT, config);
+      const medications = response.data;
+      
+      const existingSlot = medications.find(med => med.dispenser_slot === slotNumber);
+      if (existingSlot) {
+        Alert.alert("Validation Error", "This slot is already assigned. Please select a different slot.");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Continue with saving if slot is available
+      await saveMedication(data, config);
+    } catch (error) {
+      console.error("Error checking slots:", error.response?.data || error.message);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        Alert.alert("Authentication Failed", "Your session may have expired. Please log in again.");
+        router.replace("/login");
+      } else {
+        Alert.alert("Error", "Failed to check slot availability. Please try again.");
+      }
+      setIsLoading(false);
+    }
+  }
+
+  const saveMedication = async (data, config) => {
     try {
       const response = await axios.post(MEDICATIONS_ENDPOINT, data, config)
 
       if (response.status === 201) {
         // HTTP 201 Created
         Alert.alert("Success", "Medication saved successfully!")
-        // Navigate back or to the main list after saving
+        // Navigating back or to the main list after saving
         if (router.canGoBack()) {
           router.back()
         } else {
           router.replace("/(tab)") // Fallback navigation
         }
       } else {
-        // This case might not be reached often if axios throws for non-2xx status
         Alert.alert("Save Failed", `Server responded with status: ${response.status}`)
       }
     } catch (error) {
       console.error("Error saving medication:", error.response?.data || error.message)
       if (error.response) {
-        // Handle specific backend errors (like validation errors)
         if (error.response.status === 401 || error.response.status === 403) {
           Alert.alert("Authentication Failed", "Your session may have expired. Please log in again.")
           router.replace("/login")
         } else if (error.response.data) {
-          // Try to format DRF validation errors
           const errorMessages = Object.entries(error.response.data)
             .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
             .join("\n")
@@ -157,7 +168,6 @@ const MedicationDetailScreen = () => {
   }
 
   const toggleDay = (day) => {
-    // Use full day names for toggling logic
     if (selectedDays.includes(day)) {
       setSelectedDays(selectedDays.filter((d) => d !== day))
     } else {
@@ -170,8 +180,6 @@ const MedicationDetailScreen = () => {
     setter(Math.min(max, Math.max(min, currentValue + increment)))
   }
 
-  // --- TODO: Add functions for adding/removing/editing dosage times ---
-  // Example:
   const addDosageRow = () => {
     setDosages([...dosages, { id: Date.now(), amount: 1, time: "08:00" }]) // Add new default row
   }
@@ -183,55 +191,43 @@ const MedicationDetailScreen = () => {
     }
     setDosages(dosages.filter((d) => d.id !== idToRemove))
   }
-
-  // NOTE: Editing dosage time requires implementing a Time Picker modal.
-  // Placeholder function for where you'd trigger the time picker for a specific index/id.
   const openTimePicker = (index) => {
     console.log("openTimePicker called for index:", index)
-    if (isLoading) return // Don't open picker while saving
-    const currentTime = dosages[index]?.time || "09:00" // Get current time or default
-    setEditingDosageIndex(index) // Remember which dosage we are editing
-    setPickerDate(parseTimeString(currentTime)) // Set picker initial value
+    if (isLoading) return 
+    const currentTime = dosages[index]?.time || "09:00" 
+    setEditingDosageIndex(index) 
+    setPickerDate(parseTimeString(currentTime)) // Setting picker initial value
     console.log("Setting showPicker to true")
-    setShowPicker(true) // Show the picker UI
+    setShowPicker(true) // Showing the picker UI
   }
 
-  // *** 4. Implement onChange handler for the picker ***
   const onTimeChange = (event, selectedDate) => {
     // Always hide picker on Android after interaction
     if (Platform.OS === "android") {
       setShowPicker(false)
     }
 
-    // Check if a date was selected (dismissed event won't have selectedDate on some platforms)
     if (event.type === "set" && selectedDate) {
       const newTime = formatTime(selectedDate) // Format to HH:MM
 
-      // Update the specific dosage time in the state
+      // Updating the specific dosage time in the state
       if (editingDosageIndex >= 0) {
         const newDosages = [...dosages] // Create a copy
         newDosages[editingDosageIndex].time = newTime // Update the time
         setDosages(newDosages) // Set the new state
       }
-      // On iOS, user has to explicitly dismiss, so keep picker visible until they do
-      // If you want iOS to hide immediately after setting, uncomment below:
-      // if (Platform.OS === 'ios') {
-      //     setShowPicker(false);
-      // }
+   
     } else {
-      // Handle cancellation/dismissal if needed
+      // Handling cancellation/dismissal if needed
       console.log("Time picker dismissed or no date selected.")
-      // Ensure picker is hidden on dismiss for iOS as well if it wasn't hidden by 'set'
+  
       if (Platform.OS === "ios") {
         setShowPicker(false)
       }
     }
-
-    // Reset editing index (optional, depends on flow)
-    // setEditingDosageIndex(-1);
   }
 
-  // --- Render ---
+  // --- Rendering ---
   return (
     <ScrollView style={styles.container}>
       {/* Medicine Name Input */}
@@ -250,7 +246,6 @@ const MedicationDetailScreen = () => {
         <Text style={styles.sectionTitle}>Frequency</Text>
         <View style={styles.daysContainer}>
           {/* Render buttons based on full day names */}
-          {/* Example for Sunday - Repeat for others */}
           <View style={styles.daysRow}>
             <TouchableOpacity
               style={[styles.dayButton, selectedDays.includes("Sunday") && styles.selectedDay]}

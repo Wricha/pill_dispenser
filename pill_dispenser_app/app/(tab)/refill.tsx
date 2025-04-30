@@ -7,19 +7,17 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 // *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.1.104:8000"; // Make sure this IP is correct and consistent
+const API_BASE_URL = "http://192.168.1.67:8000"; // Make sure this IP is correct and consistent
 const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`;
 
 const RefillScreen = () => {
   const [medications, setMedications] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // Loading state for fetching
-  const [error, setError] = useState(null); // Error state for fetching
-  // Optional: More granular loading state for updates
+  const [isLoading, setIsLoading] = useState(false); 
+  const [error, setError] = useState(null); 
   const [updatingStockId, setUpdatingStockId] = useState(null);
   const router = useRouter();
 
-  // --- Fetch Medications ---
-  const fetchMedications = useCallback(async () => { // Wrap in useCallback
+  const fetchMedications = useCallback(async () => { 
     setIsLoading(true);
     setError(null);
     let token = null;
@@ -32,35 +30,27 @@ const RefillScreen = () => {
 
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
       console.log("RefillScreen: Fetching medications...");
-      const response = await axios.get(MEDICATIONS_ENDPOINT, config); // Use consistent endpoint and add config
+      const response = await axios.get(MEDICATIONS_ENDPOINT, config); 
       setMedications(response.data);
 
     } catch (err) {
       console.error("RefillScreen: Error fetching medications:", err.response?.data || err.message);
-      setError("Failed to load medication stock levels."); // Set user-friendly error
+      setError("Failed to load medication stock levels."); 
       if (err.response && (err.response.status === 401 || err.response.status === 403)) {
         setError("Authentication failed. Please log in again.");
-        // Optional: Clear token and redirect
-        // await AsyncStorage.removeItem('accessToken');
-        // router.replace('/login');
       } else if (err.message === "User not authenticated.") {
-         setError(err.message); // Show specific auth error
-         // router.replace('/login');
+         setError(err.message); 
       }
     } finally {
       setIsLoading(false);
     }
-  }, []); // Empty dependency array for useCallback
-
-  // Use useFocusEffect to fetch data when the screen is focused
+  }, []); 
   useFocusEffect(fetchMedications);
-
-  // --- Update Stock ---
+  // Updating Stock Logic
   const updateMedicationStock = async (medicationId, newStock) => {
-    // Prevent negative stock if logic requires it (already handled by Math.max in onPress, but good defense)
     if (newStock < 0) return;
 
-    setUpdatingStockId(medicationId); // Indicate which item is loading
+    setUpdatingStockId(medicationId); 
     let token = null;
 
     try {

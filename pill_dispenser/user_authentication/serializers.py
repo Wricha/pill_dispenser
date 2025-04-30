@@ -25,19 +25,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-
-        # Add custom claims if needed (optional)
-        # token['username'] = user.username
-
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs) # Gets {'refresh': ..., 'access': ...}
-
-        # Add user data to the response dictionary
+        data = super().validate(attrs) 
         data['user_id'] = self.user.id
         data['username'] = self.user.username
         data['email'] = self.user.email
-        # Add any other data you want returned on login
-
         return data
