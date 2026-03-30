@@ -14,8 +14,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#ffffff",
+        "googleServicesFile": "./google-services.json",
+        "package": "com.richasingh.medimate"
+      },
+      "package": "com.anonymous.pill_dispenser_app"
     },
     "web": {
       "bundler": "metro",
@@ -32,10 +35,18 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "521cfc9f-d6b9-4d38-9cd6-ce6153295486"
+      }
     }
   }
 }

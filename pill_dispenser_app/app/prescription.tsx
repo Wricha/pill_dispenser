@@ -4,23 +4,22 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"; // Import useFocusEffect
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = "http://192.168.1.67:8000";
-const USER_MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`; 
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../utils/apiConfig';
 
 const PrescriptionReviewScreen = () => {
     const params = useLocalSearchParams();
     const { prescriptionId, imageUri } = params;
     const router = useRouter();
 
-    // --- State Variables ---
     const [detectedMedicines, setDetectedMedicines] = useState([]); 
     const [isLoading, setIsLoading] = useState(true); 
     const [imageWidth, setImageWidth] = useState(0);
     const [imageHeight, setImageHeight] = useState(0);
     const [savedMedicationNames, setSavedMedicationNames] = useState(new Set()); 
+    const [renderedImageWidth, setRenderedImageWidth] = useState(0);
+    const [renderedImageHeight, setRenderedImageHeight] = useState(0);
 
-    // --- Navigation ---
+
     const navigateToMedicationForm = (medicineName) => {
         console.log("navigateToMedicationForm called with name:", medicineName);
         router.push({
@@ -53,21 +52,19 @@ const PrescriptionReviewScreen = () => {
         }
     };
 
-    // Fetch the list of ALL medications the user has saved in their main list
+    // Fetching the list of ALL medications the user has saved in their main list
     const fetchUserMedications = useCallback(async () => {
         console.log("Screen focused, fetching user's saved medications...");
         try {
             const token = await AsyncStorage.getItem('accessToken');
             if (!token) {
                 console.warn("No token found, cannot fetch user medications.");
-                return; // Don't proceed without a token
+                return; 
             }
             const config = { headers: { 'Authorization': `Bearer ${token}` } };
 
-            // *** Use the correct endpoint defined above ***
             const response = await axios.get(USER_MEDICATIONS_ENDPOINT, config);
 
-            // Assuming response.data is an array like: [{ id: 1, name: 'Aspirin' }, ...]
             if (Array.isArray(response.data)) {
                 // Extract names and store them in a Set for efficient lookup
                 const namesSet = new Set(response.data.map(med => med.name));
@@ -78,29 +75,24 @@ const PrescriptionReviewScreen = () => {
             }
         } catch (error) {
             console.error("Error fetching user medications:", error);
-            // Optional: Inform user, but maybe not critical for this specific feature
-            // Alert.alert("Update Error", "Could not verify status of added medications.");
+            
         }
-    }, []); // useCallback dependency array is empty as the function itself doesn't depend on props/state
+    }, []); 
 
-    // --- Effects ---
-
-    // Effect to fetch detected medicines and get image size on initial load or when key params change
-    // In PrescriptionReviewScreen.js
 useEffect(() => {
     console.log("Prescription ID:", params.prescriptionId);
     console.log("Image URI:", params.imageUri);
     
     fetchDetectedMedicines();
   
-    // Skip image processing if no imageUri
+    // Skipping image processing if no imageUri
     if (!params.imageUri) {
       console.error("No imageUri provided");
       setIsLoading(false);
       return;
     }
   
-    // Try using a fetch to validate the image URL first
+    // Trying to fetch to validate the image URL first
     fetch(params.imageUri)
       .then(response => {
         if (!response.ok) {
@@ -108,7 +100,7 @@ useEffect(() => {
         }
         console.log("Image fetch successful, status:", response.status);
         
-        // Now try to get the image dimensions
+        // Trying to get the image dimensions
         Image.getSize(
           params.imageUri,
           (width, height) => {
@@ -130,10 +122,21 @@ useEffect(() => {
         console.error("Image fetch failed:", error);
         Alert.alert("Image Error", `Could not access image: ${error.message}`);
       });
-  }, [params.prescriptionId, params.imageUri]); // Dependencies for this specific effect
+  }, [params.prescriptionId, params.imageUri]); //
 
     // Effect to fetch the user's saved medication list every time the screen comes into focus
-    useFocusEffect(fetchUserMedications);
+    useFocusEffect(
+      useCallback(() => {
+        // Call the async function inside the effect
+        fetchUserMedications();
+        
+        // Optional: Return cleanup function if needed
+        return () => {
+          // Cleanup code here if needed
+          console.log("RefillScreen: Screen blurred/unmounted");
+        };
+      }, [fetchUserMedications]) // Include fetchMedications in dependencies
+    );
 
     // --- Render Logic ---
 
@@ -151,37 +154,50 @@ useEffect(() => {
             <Text style={styles.title}>Review Detected Medications</Text>
 
             <View style={styles.imageContainer}>
-                {imageUri ? (
-                    <Image
-                        source={{ uri: params.imageUri }}
-                        style={styles.image}
-                        resizeMode="contain"
-                        onError={(e) => {
-                            console.error("Image loading error:", e.nativeEvent.error);
-                            Alert.alert("Image Error", `Failed to load image: ${e.nativeEvent.error}`);
-                          }}
-                    />
-                 ) : (
-                    <View style={styles.noImagePlaceholder}>
-                        <Text>No image available</Text>
-                    </View>
-                )}
+            {imageUri ? (
+                <Image
+                source={{ uri: imageUri }}
+                style={styles.image}
+                resizeMode="contain"
+                onLayout={(event) => {
+                    const { width, height } = event.nativeEvent.layout;
+                    setRenderedImageWidth(width);
+                    setRenderedImageHeight(height);
+                }}
+                onError={(e) => {
+                    console.error("Image loading error:", e.nativeEvent.error);
+                    Alert.alert("Image Error", `Failed to load image: ${e.nativeEvent.error}`);
+                }}
+                />
+            ) : (
+                <View style={styles.noImagePlaceholder}>
+                <Text>No image available</Text>
+                </View>
+            )}
 
-                {/* Draw bounding boxes */}
-                {imageWidth > 0 && imageHeight > 0 && detectedMedicines.map((medicine) => (
-                    <View
-                        key={medicine.id}
-                        style={[
-                            styles.boundingBox,
-                            {
-                                left: typeof medicine.bbox_x === 'number' ? (medicine.bbox_x / imageWidth) * 300 : 0,
-                                top: typeof medicine.bbox_y === 'number' ? (medicine.bbox_y / imageHeight) * 400 : 0,
-                                width: typeof medicine.bbox_width === 'number' ? (medicine.bbox_width / imageWidth) * 300 : 0,
-                                height: typeof medicine.bbox_height === 'number' ? (medicine.bbox_height / imageHeight) * 400 : 0,
-                            }
-                        ]}
-                    />
-                ))}
+            {/* Draw bounding boxes */}
+            {imageWidth > 0 && imageHeight > 0 && detectedMedicines.map((medicine) => (
+                <View
+                key={medicine.id}
+                style={[
+                    styles.boundingBox,
+                    {
+                    left: typeof medicine.bbox_x === 'number'
+                        ? (medicine.bbox_x / imageWidth) * renderedImageWidth
+                        : 0,
+                    top: typeof medicine.bbox_y === 'number'
+                        ? (medicine.bbox_y / imageHeight) * renderedImageHeight
+                        : 0,
+                    width: typeof medicine.bbox_width === 'number'
+                        ? (medicine.bbox_width / imageWidth) * renderedImageWidth
+                        : 0,
+                    height: typeof medicine.bbox_height === 'number'
+                        ? (medicine.bbox_height / imageHeight) * renderedImageHeight
+                        : 0,
+                    },
+                ]}
+                />
+            ))}
             </View>
 
             <ScrollView style={styles.medicineList}>
@@ -189,7 +205,7 @@ useEffect(() => {
                     <Text style={styles.noMedicinesText}>No medicines detected in this prescription.</Text>
                 )}
                 {detectedMedicines.map((medicine) => {
-                    // Check if this medicine name is in the set of user's saved names
+                    // Checking if this medicine name is in the set of user's saved names
                     const isAdded = savedMedicationNames.has(medicine.name);
 
                     return (
@@ -200,7 +216,6 @@ useEffect(() => {
                                     Frequency: {medicine.frequency || 'Not specified'}
                                 </Text>
 
-                                {/* Conditionally render "Added" text or the "Add" button */}
                                 {isAdded ? (
                                     <View style={styles.addedIndicator}>
                                         <Feather name="check-square" size={16} color="green" />

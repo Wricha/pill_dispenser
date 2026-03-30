@@ -4,6 +4,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import axios from 'axios'; 
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Need AsyncStorage for direct calls
+import { API_BASE_URL,LOGIN_ENDPOINT } from '../utils/apiConfig';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 export const Login = ({navigation}) => {
 
@@ -13,43 +15,50 @@ export const Login = ({navigation}) => {
     const router = useRouter();
 
     const onLogin = async () => {
-
-      setLoading(true); 
+      setLoading(true);
       try {
-        const res = await axios.post('http://192.168.1.67:8000/auth/api/token/', { 
+        const res = await axios.post(LOGIN_ENDPOINT, {
           username,
           password,
         });
 
         const token = res.data.access;
-        const userId = res.data.user_id; // Adjust 'user_id' if the key name is different
-        console.log('Login Response Data:', res.data); // Log the whole response to check
+        const userId = res.data.user_id;
+        console.log('Login Response Data:', res.data);
         console.log('Access Token:', token);
-        console.log('User ID from response:', userId); // Log the extracted userId
+        console.log('User ID from response:', userId);
 
         if (!token) {
-            throw new Error("Access token not received from server.");
+          throw new Error("Access token not received from server.");
         }
-        // Save token directly
         await AsyncStorage.setItem('accessToken', token);
-        console.log("Token saved directly in Login.js");
-
         if (userId) {
-           await AsyncStorage.setItem('userId', String(userId)); // Save userId as a string
-           console.log("User ID saved directly in Login.js:", userId);
+          await AsyncStorage.setItem('userId', String(userId));
         } else {
-           console.warn("User ID not found in login response. Cannot save userId.");
+          console.warn("User ID not found in login response. Cannot save userId.");
+        }
+
+        // Register for push notifications and save token to backend before navigation
+        try {
+          const expoPushToken = await registerForPushNotificationsAsync();
+          if (expoPushToken) {
+            await axios.post(
+              `${API_BASE_URL}/api/save-expo-token/`,
+              { expo_push_token: expoPushToken },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          }
+        } catch (notifError) {
+          console.warn("Push notification registration failed:", notifError);
         }
 
         Alert.alert('Success', 'Logged in successfully!');
-        router.push("/(tab)"); // Navigate
-
+        router.push("/(tab)");
       } catch (error) {
-         console.error("Login failed:", error.response?.data || error.message); // Log full error
-         Alert.alert('Login Failed', error.response?.data?.detail || 'An error occurred. Try again.');
-      } 
-      finally {
-         setLoading(false); // Stop loading
+        console.error("Login failed:", error.response?.data || error.message);
+        Alert.alert('Login Failed', error.response?.data?.detail || 'An error occurred. Try again.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -104,11 +113,11 @@ export const Login = ({navigation}) => {
         {/* Continue Button */}
 
         <TouchableOpacity
-          style={styles.continueButton} // Consider adding disabled styles based on 'loading' state
+          style={styles.continueButton} 
           onPress={onLogin}
-          disabled={loading} // Disable button when loading
+          disabled={loading} // Disabling button when loading
         >
-          {/* You need to conditionally render Text or ActivityIndicator here based on 'loading' state */}
+          
           {loading ? (
               <ActivityIndicator size="small" color="#ffffff" />
           ) : (
@@ -117,7 +126,6 @@ export const Login = ({navigation}) => {
         </TouchableOpacity>
 
 
-        {/* Optional: Link to Signup - Added from previous context version */}
          <TouchableOpacity onPress={() => router.push('/signup')}>
            <Text style={styles.signupLinkText}>Don't have an account? Sign Up</Text>
          </TouchableOpacity>

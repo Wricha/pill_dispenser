@@ -5,10 +5,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router"; // Import useFocusEffect
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
-
-// *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.1.67:8000"; // Make sure this IP is correct and consistent
-const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`;
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../../utils/apiConfig';
 
 const RefillScreen = () => {
   const [medications, setMedications] = useState([]);
@@ -45,7 +42,18 @@ const RefillScreen = () => {
       setIsLoading(false);
     }
   }, []); 
-  useFocusEffect(fetchMedications);
+  useFocusEffect(
+  useCallback(() => {
+    // Call the async function inside the effect
+    fetchMedications();
+    
+    // Optional: Return cleanup function if needed
+    return () => {
+      // Cleanup code here if needed
+      console.log("RefillScreen: Screen blurred/unmounted");
+    };
+  }, [fetchMedications]) // Include fetchMedications in dependencies
+);
   // Updating Stock Logic
   const updateMedicationStock = async (medicationId, newStock) => {
     if (newStock < 0) return;
@@ -65,15 +73,14 @@ const RefillScreen = () => {
       const data = { stock: newStock }; // Send only the stock field for PATCH
 
       console.log(`Updating stock for ID ${medicationId} to ${newStock}`);
-      // Use PATCH for partial updates (only sending 'stock')
+  
       const response = await axios.patch(`${MEDICATIONS_ENDPOINT}${medicationId}/`, data, config);
 
-      // Update local state ONLY AFTER successful backend update
-      if (response.status === 200) { // Check for success status (usually 200 OK for PATCH/PUT)
+      if (response.status === 200) { // Checking for success status 
            setMedications(currentMedications =>
              currentMedications.map(medication =>
                medication.id === medicationId
-                 ? { ...medication, stock: newStock } // Update the correct medication
+                 ? { ...medication, stock: newStock } // Updating the correct medication
                  : medication
              )
            );

@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser, logoutUser, registerUser /*, getUserDetails */ } from '../app/api_auth'; // Adjust path
+import { loginUser, logoutUser, registerUser /*, getUserDetails */ } from '../utils/api_auth'; // Adjust path
 
 // 1. Create Context
 const AuthContext = createContext({

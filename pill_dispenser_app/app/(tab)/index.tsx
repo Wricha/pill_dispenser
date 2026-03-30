@@ -11,12 +11,12 @@ import {
   StatusBar
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from "expo-router";
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = "http://192.168.1.67:8000";
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../../utils/apiConfig';
 
 const HomeScreen = () => {
   const [medications, setMedications] = useState([]);
@@ -144,7 +144,7 @@ const HomeScreen = () => {
     );
   };
 
-  // Image picking/uploading functions
+  // Image uploading function
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -268,8 +268,18 @@ const HomeScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
-      
-      {/* Upload Section with Shadow and Better Design */}
+      {/* Header Section */}
+      <View style={styles.headerContainer}>
+        <View>
+          <Text style={styles.greetingText}>Hello 👋</Text>
+          <Text style={styles.headerTitle}>Your Medications</Text>
+        </View>
+        <View style={styles.avatarContainer}>
+          <Ionicons name="person-circle" size={44} color="#4A90E2" />
+        </View>
+      </View>
+
+      {/* Upload Section with Gradient/Soft Color */}
       <TouchableOpacity 
         style={styles.uploadSection} 
         onPress={pickImage}
@@ -317,7 +327,7 @@ const HomeScreen = () => {
           {medications.map((medication) => (
             <View key={medication.id} style={styles.medicationItem}>
               {/* Medication Icon with Emoji instead of first letter */}
-              <View style={[styles.medicineIconContainer, { backgroundColor: getMedicationColor(medication.name) }]}>
+              <View style={[styles.medicineIconContainer, { backgroundColor: getMedicationColor(medication.name) }]}> 
                 <Text style={styles.medicineIconText}>
                   {getMedicineEmoji(medication.name)}
                 </Text>
@@ -355,19 +365,18 @@ const HomeScreen = () => {
               </View>
             </View>
           ))}
-          
           {/* Extra space at bottom for better scrolling */}
           <View style={{ height: 80 }} />
         </ScrollView>
       )}
 
-      {/* Add Button - Floating Action Button Style */}
+      {/* Add Button - Circular Floating Action Button */}
       <TouchableOpacity 
-        style={styles.addButton} 
+        style={styles.fab}
         onPress={onAddMedication}
         activeOpacity={0.8}
       >
-        <Text style={styles.addButtonText}>+ ADD</Text>
+        <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -530,24 +539,41 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFF0F0',
   },
-  addButton: {
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    marginTop: 8,
+    paddingHorizontal: 2,
+  },
+  greetingText: {
+    fontSize: 16,
+    color: '#888',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  avatarContainer: {
+    marginLeft: 10,
+    backgroundColor: '#F0F7FF',
+    borderRadius: 22,
+    padding: 2,
+  },
+  fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    right: 24,
+    bottom: 28,
+    backgroundColor: '#4A90E2',
+    borderRadius: 32,
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 4,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4A90E2',
+    elevation: 6,
   },
 });
 

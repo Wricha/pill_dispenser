@@ -2,7 +2,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Aler
 import React, {useState} from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { registerUser } from '../app/api_auth';
+import { registerUser } from '../utils/api_auth';
 
 export const Signup = ({navigation}) => {
   const router = useRouter();
@@ -17,18 +17,18 @@ export const Signup = ({navigation}) => {
       return;
     }
     try {
-      // Call the imported registerUser function
-      const data = await registerUser(username, email, password, confirmPassword); // Pass confirmPassword
+      // Calling the 
+      const data = await registerUser(username, email, password, confirmPassword);
 
-      console.log("Registration successful:", data); // Log success data
+      console.log("Registration successful:", data); // Logging success data
       Alert.alert('Success', 'User registered successfully');
       router.push("/login"); // Navigate to login after successful registration
 
     } catch (error) {
-      console.error("Registration failed:", error); // Log the raw error
+      console.error("Registration failed:", error); // Logging the raw error
       let errorMessage = 'Registration failed. Please try again.';
 
-      // Attempt to parse specific DRF validation errors
+      
       if (typeof error === 'object' && error !== null) {
         const errorDetails = Object.entries(error).map(([field, messages]) =>
             `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`

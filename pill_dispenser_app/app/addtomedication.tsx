@@ -6,11 +6,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams} from "expo-router"; // Add useLocalSearchParams if not already there
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../utils/apiConfig';
 
-// --- Configuration ---
-// *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.1.67:8000"; // Make sure this IP is correct and consistent
-const MEDICATIONS_ENDPOINT = `${API_BASE_URL}/api/medications/`;
 // --- ---
 const parseTimeString = (timeString = "09:00") => {
   const [hours, minutes] = timeString.split(':').map(Number);

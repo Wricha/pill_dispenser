@@ -5,11 +5,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router"; /
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 import DateTimePicker from '@react-native-community/datetimepicker'; // <-- Import DateTimePicker
-
-// --- Configuration ---
-// *** Use your correct, consistent backend IP/URL ***
-const API_BASE_URL = "http://192.168.1.67:8000"; // Make sure this IP is correct and consistent
-const MEDICATIONS_ENDPOINT_BASE = `${API_BASE_URL}/api/medications/`; // Base for individual meds
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../utils/apiConfig';
 // --- ---
 
 // Helper to format time (HH:MM)
@@ -22,13 +18,14 @@ const formatTime = (date) => {
 
 // Helper to parse time string ('HH:MM') into a Date object for the picker
 const parseTimeString = (timeString) => {
-    const now = new Date(); // Use today's date as base
+    const now = new Date();
     if (typeof timeString === 'string' && timeString.includes(':')) {
         const [hours, minutes] = timeString.split(':');
-        // Use || 0 for safety in case split results in undefined/NaN
-        now.setHours(parseInt(hours, 10) || 0, parseInt(minutes, 10) || 0, 0, 0);
+        const parsedHours = parseInt(hours, 10) || 0;
+        const parsedMinutes = parseInt(minutes, 10) || 0;
+        now.setHours(parsedHours, parsedMinutes, 0, 0);
     } else {
-        // Default time if parsing fails, e.g., 9 AM
+        // Default time if parsing fails
         now.setHours(9, 0, 0, 0);
     }
     return now;
@@ -162,19 +159,17 @@ const MedicationUpdateScreen = () => {
         const userId = storedUserId ? parseInt(storedUserId, 10) : null;
 
         if (!token || !userId) { throw new Error("User not authenticated."); }
-        // Optional: Check if current user ID matches the original owner ID before sending update
-        // if (originalUserId && userId !== originalUserId) {
-        //     throw new Error("Permission denied: You cannot update medication belonging to another user.");
-        // }
+        
 
         const updatedData = {
             name: medicineName,
             selected_days: selectedDays,
             // Ensure dosages have valid numbers and required fields for backend
             dosages: dosages.map(d => ({
-                amount: parseFloat(d.amount) || 0, // Ensure float/number
-                time: d.time || '00:00' // Ensure time string
-            })),
+            id: d.id?.toString().startsWith('temp-') ? undefined : d.id, // Keep id if it's real, not temp
+            amount: parseFloat(d.amount) || 0,
+            time: d.time || '00:00'
+        })),
             stock: parseInt(stock, 10) || 0, // Ensure integer
             reminder: parseInt(reminder, 10) || 0, // Ensure integer
             dispenser_slot: parseInt(slotNumber, 10) || 0,
@@ -373,7 +368,7 @@ const MedicationUpdateScreen = () => {
                   key={day}
                   style={[styles.dayButton, selectedDays.includes(day) && styles.selectedDay]}
                   onPress={() => toggleDay(day)} disabled={isSaving}>
-                  <Text style={[styles.dayText, selectedDays.includes(day) && styles.selectedDayText]}>{day.substring(0, 3)}</Text>
+                  <Text style={[styles.dayText, selectedDays.includes(day) && styles.selectedDayText]}>{day}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -383,7 +378,7 @@ const MedicationUpdateScreen = () => {
                   key={day}
                   style={[styles.dayButton, selectedDays.includes(day) && styles.selectedDay]}
                   onPress={() => toggleDay(day)} disabled={isSaving}>
-                  <Text style={[styles.dayText, selectedDays.includes(day) && styles.selectedDayText]}>{day.substring(0, 3)}</Text>
+                  <Text style={[styles.dayText, selectedDays.includes(day) && styles.selectedDayText]}>{day}</Text>
                 </TouchableOpacity>
               ))}
                <View style={[styles.dayButton, {backgroundColor: 'transparent'}]} />{/* Placeholder */}

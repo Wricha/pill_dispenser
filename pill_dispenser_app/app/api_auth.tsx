@@ -2,14 +2,12 @@ import axios from 'axios';
 
 // Note: This is the older import style for AsyncStorage.
 // Newer projects typically use: import AsyncStorage from '@react-native-async-storage/async-storage';
-import {AsyncStorage} from 'react-native';
-
-const API_URL = 'http://192.168.1.67:8000/auth/api/'; // <--- CORRECT IP and Base Path?
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT, LOGIN_ENDPOINT, REGISTER_ENDPOINT } from '../utils/apiConfig';
 export const registerUser = async (username, email, password, passwordConfirmation) => {
 
   try {
-    const response = await axios.post(`${API_URL}register/`, { 
+    const response = await axios.post(REGISTER_ENDPOINT, { 
       username,
       email,
       password,
@@ -27,7 +25,7 @@ export const registerUser = async (username, email, password, passwordConfirmati
 export const loginUser = async (username, password) => {
 
   try {
-    const loginResponse = await axios.post(`http://192.168.1.67:8000/api/token/`, { 
+    const loginResponse = await axios.post(LOGIN_ENDPOINT, {
        username,
        password
      });
@@ -92,7 +90,7 @@ export const getUserDetails = async () => {
     // ** CHECK if user detail endpoint is relative to API_URL **
 
     // Example assuming it's /api/auth/user/ - Note: URL used is API_URL + user/
-    const response = await axios.get(`${API_URL}user/`, { // <--- Check this endpoint
+    const response = await axios.get(`${API_BASE_URL}user/`, { // <--- Check this endpoint
 
       headers: {
 
