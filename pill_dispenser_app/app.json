@@ -9,16 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.richasingh.medimate"
     },
     "android": {
+      "package": "com.richasingh.medimate",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "googleServicesFile": "./google-services.json",
-        "package": "com.richasingh.medimate"
-      },
-      "package": "com.anonymous.pill_dispenser_app"
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",

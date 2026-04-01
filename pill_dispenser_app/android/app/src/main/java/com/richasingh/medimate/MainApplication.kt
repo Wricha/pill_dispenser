@@ -1,4 +1,4 @@
-package com.anonymous.pill_dispenser_app
+package com.richasingh.medimate
 
 import android.app.Application
 import android.content.res.Configuration

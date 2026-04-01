@@ -1,272 +1,316 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator // Import Alert and ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, Alert, ActivityIndicator, StatusBar
 } from 'react-native';
-import { useRouter, useFocusEffect } from "expo-router"; // Import useFocusEffect
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from "expo-router";
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
-import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../../utils/apiConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL, MEDICATIONS_ENDPOINT } from '../../utils/apiConfig';
 
 const RefillScreen = () => {
   const [medications, setMedications] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); 
-  const [error, setError] = useState(null); 
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [updatingStockId, setUpdatingStockId] = useState(null);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  const fetchMedications = useCallback(async () => { 
+  const TAB_BAR_HEIGHT = 60 + insets.bottom;
+
+  const fetchMedications = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    let token = null;
-
     try {
-      token = await AsyncStorage.getItem('accessToken');
-      if (!token) {
-        throw new Error("User not authenticated.");
-      }
-
+      const token = await AsyncStorage.getItem('accessToken');
+      if (!token) throw new Error("User not authenticated.");
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      console.log("RefillScreen: Fetching medications...");
-      const response = await axios.get(MEDICATIONS_ENDPOINT, config); 
+      const response = await axios.get(MEDICATIONS_ENDPOINT, config);
       setMedications(response.data);
-
     } catch (err) {
-      console.error("RefillScreen: Error fetching medications:", err.response?.data || err.message);
-      setError("Failed to load medication stock levels."); 
-      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+      console.error("RefillScreen error:", err.response?.data || err.message);
+      if (err.response?.status === 401 || err.response?.status === 403) {
         setError("Authentication failed. Please log in again.");
       } else if (err.message === "User not authenticated.") {
-         setError(err.message); 
+        setError(err.message);
+      } else {
+        setError("Failed to load medication stock levels.");
       }
     } finally {
       setIsLoading(false);
     }
-  }, []); 
+  }, []);
+
   useFocusEffect(
-  useCallback(() => {
-    // Call the async function inside the effect
-    fetchMedications();
-    
-    // Optional: Return cleanup function if needed
-    return () => {
-      // Cleanup code here if needed
-      console.log("RefillScreen: Screen blurred/unmounted");
-    };
-  }, [fetchMedications]) // Include fetchMedications in dependencies
-);
-  // Updating Stock Logic
+    useCallback(() => {
+      fetchMedications();
+      return () => { };
+    }, [fetchMedications])
+  );
+
   const updateMedicationStock = async (medicationId, newStock) => {
     if (newStock < 0) return;
-
-    setUpdatingStockId(medicationId); 
-    let token = null;
-
+    setUpdatingStockId(medicationId);
     try {
-      token = await AsyncStorage.getItem('accessToken');
-      if (!token) {
-        Alert.alert("Authentication Required", "Please log in.");
-        setUpdatingStockId(null);
-        return;
-      }
-
+      const token = await AsyncStorage.getItem('accessToken');
+      if (!token) { Alert.alert("Authentication Required", "Please log in."); return; }
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const data = { stock: newStock }; // Send only the stock field for PATCH
-
-      console.log(`Updating stock for ID ${medicationId} to ${newStock}`);
-  
-      const response = await axios.patch(`${MEDICATIONS_ENDPOINT}${medicationId}/`, data, config);
-
-      if (response.status === 200) { // Checking for success status 
-           setMedications(currentMedications =>
-             currentMedications.map(medication =>
-               medication.id === medicationId
-                 ? { ...medication, stock: newStock } // Updating the correct medication
-                 : medication
-             )
-           );
-            // Optional: Brief success feedback? Less disruptive without Alert.
+      const response = await axios.patch(`${MEDICATIONS_ENDPOINT}${medicationId}/`, { stock: newStock }, config);
+      if (response.status === 200) {
+        setMedications(prev =>
+          prev.map(med => med.id === medicationId ? { ...med, stock: newStock } : med)
+        );
       } else {
-           throw new Error(`Server responded with status ${response.status}`);
+        throw new Error(`Server responded with status ${response.status}`);
       }
-
     } catch (error) {
-      console.error("Error updating medication stock:", error.response?.data || error.message);
-      // Provide specific feedback based on error
-       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-           Alert.alert("Authentication Failed", "Your session may have expired or you lack permission.");
-           // router.replace('/login');
-       } else if (error.response && error.response.status === 404) {
-           Alert.alert("Error", `Medication with ID ${medicationId} not found.`);
-           // Optionally remove it from local state if not found on server
-           setMedications(prevMeds => prevMeds.filter(med => med.id !== medicationId));
-       } else if (error.response && error.response.status === 400) {
-            Alert.alert("Error", `Invalid data for stock update: ${JSON.stringify(error.response.data)}`);
-       }
-       else {
-           Alert.alert("Error", "Failed to update medication stock. Please try again.");
-       }
+      console.error("Error updating stock:", error.response?.data || error.message);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        Alert.alert("Authentication Failed", "Your session may have expired.");
+      } else if (error.response?.status === 404) {
+        Alert.alert("Error", "Medication not found.");
+        setMedications(prev => prev.filter(med => med.id !== medicationId));
+      } else {
+        Alert.alert("Error", "Failed to update stock. Please try again.");
+      }
     } finally {
-      setUpdatingStockId(null); 
+      setUpdatingStockId(null);
     }
   };
 
-  // --- Render Logic ---
+  const getStockColor = (stock) => {
+    if (stock === 0) return '#F44336';
+    if (stock <= 5) return '#FF9800';
+    return '#4CAF50';
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.listContainer}>
+    // edges={['top']} — pushes content below status bar; tab bar handles bottom
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-        {isLoading && <ActivityIndicator size="large" color="#CC7755" style={{ marginTop: 20 }} />}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Refill Stock</Text>
+        <Text style={styles.headerSubtitle}>Manage your medication quantities</Text>
+      </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
-
-        {!isLoading && !error && medications.length === 0 && (
-            <Text style={styles.emptyText}>No medications found.</Text>
+      {/* Content */}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.listContainer,
+          { paddingBottom: TAB_BAR_HEIGHT + 16 }   // clears tab bar
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {isLoading && (
+          <ActivityIndicator size="large" color="#CC7755" style={{ marginTop: 40 }} />
         )}
 
-        {!isLoading && medications.length > 0 && medications.map((medication) => {
-            const isUpdating = updatingStockId === medication.id; // Check if this item is currently updating
-            return (
-                // Use medication.id as key
-                <View key={medication.id} style={styles.medicationItem}>
-                    <View style={styles.medicineRow}>
-                    <Text style={styles.medicineName}>{medication.name}</Text>
-                    <View style={styles.stockContainer}>
-                        {/* Decrease Button */}
-                        <TouchableOpacity
-                        style={[styles.stockButton, isUpdating && styles.stockButtonDisabled]} // Disable style
-                        onPress={() => updateMedicationStock(
-                            medication.id,
-                            Math.max(0, medication.stock - 1) // Ensure stock doesn't go below 0
-                        )}
-                        disabled={isUpdating} // Disable button
-                        >
-                        <Text style={styles.stockButtonText}>-</Text>
-                        </TouchableOpacity>
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchMedications}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-                        {/* Stock Value / Indicator */}
-                        <View style={styles.stockTextContainer}>
-                            {isUpdating ? (
-                                <ActivityIndicator size="small" color="#CC7755" />
-                            ) : (
-                                <Text style={styles.stockText}>{medication.stock}</Text>
-                            )}
-                        </View>
+        {!isLoading && !error && medications.length === 0 && (
+          <Text style={styles.emptyText}>No medications found.</Text>
+        )}
 
+        {!isLoading && medications.map((medication) => {
+          const isUpdating = updatingStockId === medication.id;
+          const stockColor = getStockColor(medication.stock);
 
-                        {/* Increase Button */}
-                        <TouchableOpacity
-                        style={[styles.stockButton, isUpdating && styles.stockButtonDisabled]} // Disable style
-                        onPress={() => updateMedicationStock(
-                            medication.id,
-                            medication.stock + 1
-                        )}
-                         disabled={isUpdating} // Disable button
-                        >
-                        <Text style={styles.stockButtonText}>+</Text>
-                        </TouchableOpacity>
-                    </View>
-                    </View>
+          return (
+            <View key={medication.id} style={styles.medicationItem}>
+              <View style={styles.medicineRow}>
+                {/* Left: name + stock indicator */}
+                <View style={styles.nameSection}>
+                  <Text style={styles.medicineName}>{medication.name}</Text>
+                  <View style={styles.stockBadge}>
+                    <View style={[styles.stockDot, { backgroundColor: stockColor }]} />
+                    <Text style={[styles.stockLabel, { color: stockColor }]}>
+                      {medication.stock === 0
+                        ? 'Out of stock'
+                        : medication.stock <= 5
+                          ? 'Low stock'
+                          : 'In stock'}
+                    </Text>
+                  </View>
                 </View>
-            );
+
+                {/* Right: stock controls */}
+                <View style={styles.stockContainer}>
+                  <TouchableOpacity
+                    style={[styles.stockButton, (isUpdating || medication.stock === 0) && styles.stockButtonDisabled]}
+                    onPress={() => updateMedicationStock(medication.id, Math.max(0, medication.stock - 1))}
+                    disabled={isUpdating || medication.stock === 0}
+                  >
+                    <Text style={styles.stockButtonText}>−</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.stockTextContainer}>
+                    {isUpdating ? (
+                      <ActivityIndicator size="small" color="#CC7755" />
+                    ) : (
+                      <Text style={[styles.stockText, { color: stockColor }]}>
+                        {medication.stock}
+                      </Text>
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.stockButton, isUpdating && styles.stockButtonDisabled]}
+                    onPress={() => updateMedicationStock(medication.id, medication.stock + 1)}
+                    disabled={isUpdating}
+                  >
+                    <Text style={styles.stockButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          );
         })}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
-// --- Styles --- (Combine and refine styles)
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5', // Lighter background
-  },
-  listContainer: {
-    padding: 20,
-    paddingBottom: 40, // Ensure space at bottom
+    backgroundColor: '#f5f5f5',
   },
   header: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#333',
+    color: '#333333',
   },
-   errorText: {
-        color: 'red',
-        textAlign: 'center',
-        marginVertical: 15,
-        fontSize: 16,
-   },
-   emptyText: {
-        textAlign: 'center',
-        marginTop: 40,
-        color: 'grey',
-        fontSize: 16,
-   },
-  medicationItem: { // Container for each row
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#9E9E9E',
+    marginTop: 2,
+  },
+  container: {
+    flex: 1,
+  },
+  listContainer: {
+    padding: 16,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+  },
+  errorText: {
+    color: '#F44336',
+    textAlign: 'center',
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  retryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    backgroundColor: '#CC7755',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 60,
+    color: '#9E9E9E',
+    fontSize: 16,
+  },
+  medicationItem: {
     backgroundColor: 'white',
-    borderRadius: 10,
-    marginBottom: 12, // Space between items
+    borderRadius: 12,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
     elevation: 2,
-    overflow: 'hidden', // Ensures shadow respects border radius
   },
   medicineRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 15,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  nameSection: {
+    flex: 1,
+    marginRight: 12,
   },
   medicineName: {
     fontSize: 16,
-    fontWeight: '500', // Slightly bolder
-    flex: 1, // Take available space
-    marginRight: 10, // Space before stock controls
-    color: '#444',
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stockDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 5,
+  },
+  stockLabel: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   stockContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stockButton: {
-    backgroundColor: '#CC7755', // Theme color
-    width: 32, // Slightly larger tap area
-    height: 32,
-    borderRadius: 16, // Circular
+    backgroundColor: '#CC7755',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 5, // Add slight horizontal margin
-     shadowColor: '#000', // Subtle shadow for buttons
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
     elevation: 1,
   },
-   stockButtonDisabled: {
-        backgroundColor: '#cccccc', // Grey out when disabled
-   },
+  stockButtonDisabled: {
+    backgroundColor: '#e0e0e0',
+  },
   stockButtonText: {
     color: 'white',
-    fontSize: 20, // Larger + / -
+    fontSize: 22,
     fontWeight: 'bold',
-    lineHeight: 22, // Adjust line height for vertical centering
+    lineHeight: 24,
   },
-   stockTextContainer: { // Container to hold text or indicator
-        minWidth: 40, // Ensure space for number or indicator
-        height: 30, // Match button height roughly
-        marginHorizontal: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-   },
+  stockTextContainer: {
+    minWidth: 44,
+    height: 34,
+    marginHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   stockText: {
-    fontSize: 17,
-    fontWeight: '600', // Bolder stock number
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
-    color: '#333',
   },
-  // Remove medicationList and medicationItem duplicate styles if they were separate
 });
 
 export default RefillScreen;
