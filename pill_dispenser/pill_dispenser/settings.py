@@ -2,7 +2,9 @@ from pathlib import Path
 from datetime import timedelta
 import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+from dotenv import load_dotenv
 
+load_dotenv('pill_dispenser/.env')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
@@ -11,8 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
-
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 MEDIA_URL = '/media/'
 
@@ -21,8 +22,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # Or your actual path
 # SECURITY WARNING: don't run with debug turned on in production!
 
 DEBUG = os.environ.get("DEBUG") == "True"
-
-
 
 ALLOWED_HOSTS = ['*']
 
@@ -46,8 +45,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-"django.middleware.security.SecurityMiddleware",
 "corsheaders.middleware.CorsMiddleware",
+"django.middleware.security.SecurityMiddleware",
 "django.contrib.sessions.middleware.SessionMiddleware",
 "django.middleware.common.CommonMiddleware",
 "django.middleware.csrf.CsrfViewMiddleware",
@@ -56,11 +55,7 @@ MIDDLEWARE = [
 "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-
-
 CORS_ALLOW_ALL_ORIGINS = True
-
-
 
 REST_FRAMEWORK = {
 'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -68,11 +63,7 @@ REST_FRAMEWORK = {
 )
 }
 
-
-
 ROOT_URLCONF = "pill_dispenser.urls"
-
-
 
 TEMPLATES = [
 {
@@ -90,19 +81,11 @@ TEMPLATES = [
 },
 ]
 
-
-
 WSGI_APPLICATION = "pill_dispenser.wsgi.application"
-
-
-
-
 
 # Database
 
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-
 
 DATABASES = {
 
@@ -113,16 +96,11 @@ DATABASES = {
 "NAME": BASE_DIR / "db.sqlite3",
 
 }
-
 }
-
-
 
 # Password validation
 
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
-
-
 
 AUTH_PASSWORD_VALIDATORS = [
 
