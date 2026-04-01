@@ -1,3 +1,5 @@
+from schedules.models import UserProfile
+from .serializers import ExpoPushTokenSerializer
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -51,3 +53,16 @@ class SessionLogoutView(APIView):
         except Exception as e:
             print(f"Logout error: {e}")
             return Response({"error": "An error occurred during logout."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class SaveExpoPushTokenView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        serializer = ExpoPushTokenSerializer(data=request.data)
+        if serializer.is_valid():
+            expo_push_token = serializer.validated_data['expo_push_token']
+            profile, created = UserProfile.objects.get_or_create(user=request.user)
+            profile.expo_push_token = expo_push_token
+            profile.save()
+            return Response({'detail': 'Expo push token saved successfully.'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,3 +1,4 @@
+
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,10 +8,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from .models import Medication
+from .models import UserProfile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import MedicationEvent
 from .serializers import MedicationEventSerializer
+from .notifications import send_expo_push_notification
 from datetime import datetime
 from datetime import timedelta
 from django.utils import timezone
@@ -19,6 +22,8 @@ from django.db import transaction
 from datetime import time
 import logging
 import requests
+from django.contrib.auth import get_user_model
+from .models import UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -236,18 +241,81 @@ class MedicationEventViewSet(viewsets.ModelViewSet):
         except DosageSchedule.DoesNotExist:
             return Response({"detail": "Dosage schedule not found."}, status=status.HTTP_404_NOT_FOUND)
 
-def dispense_pill(slot):
-    esp32_ip = "http://192.168.1.91"  
-    try:
-        response = requests.get(f"{esp32_ip}/dispense", params={"slot": slot}, timeout=5)
-        if response.status_code == 200:
-            print("Success:", response.text)
-        else:
-            print("Error:", response.status_code, response.text)
-    except requests.exceptions.RequestException as e:
-        print("Failed to reach ESP32:", e)
-
-
-
-
+# schedules/views.py
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_push_token(request):
+    token = request.data.get('expo_push_token')
+    if not token:
+        return Response({'error': 'No token provided'}, status=400)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.expo_push_token = token
+    profile.save()
+    logger.info(f"Saved push token for user {request.user.username}: {token}")
+    return Response({'status': 'Token saved'})
     
+User = get_user_model()
+
+@api_view(["POST"])
+def register_esp32(request):
+    """
+    ESP32 auto-register endpoint
+    """
+    device_id = request.data.get("device_id")
+    ip_address = request.data.get("ip_address")
+    username = request.data.get("username")
+
+    if not all([device_id, ip_address, username]):
+        return Response(
+            {"error": "Missing fields"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(username=username)
+        profile = user.profile
+
+        # save IP dynamically
+        profile.esp32_ip_address = ip_address
+        profile.save()
+
+        return Response({
+            "message": "ESP32 registered successfully",
+            "ip": ip_address
+        })
+
+    except User.DoesNotExist:
+        return Response(
+            {"error": "User not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+def dispense_pill(medication, slot):
+    try:
+        # Get ESP32 IP from user's profile
+        esp32_ip = medication.user.profile.esp32_ip_address
+
+        if not esp32_ip:
+            logger.error("ESP32 IP not configured for user")
+            return False
+
+        url = f"http://{esp32_ip}/dispense"
+
+        response = requests.get(
+            url,
+            params={"slot": slot},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            logger.info(f"Dispensed successfully from slot {slot}")
+            return True
+        else:
+            logger.error(f"ESP32 error: {response.status_code} {response.text}")
+            return False
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to reach ESP32: {e}")
+        return False
+
+

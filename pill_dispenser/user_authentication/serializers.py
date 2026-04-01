@@ -1,3 +1,4 @@
+from schedules.models import UserProfile
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -33,3 +34,6 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['username'] = self.user.username
         data['email'] = self.user.email
         return data
+    
+class ExpoPushTokenSerializer(serializers.Serializer):
+    expo_push_token = serializers.CharField(max_length=255)    

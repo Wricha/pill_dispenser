@@ -45,13 +45,19 @@ class UserProfile(models.Model):
         on_delete=models.CASCADE,
         related_name='profile' 
     )
+
     esp32_ip_address = models.GenericIPAddressField(
-    verbose_name="ESP32 IP Address",
-    protocol='IPv4',
-    blank=True,
-    null=True,
-    default="192.168.1.86"  
-)
+        verbose_name="ESP32 IP Address",
+        protocol='IPv4',
+        blank=True,
+        null=True,
+    )
+    expo_push_token = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Expo push notification token for this user."
+    )
 
     def __str__(self):
         return f"Profile for {self.user.username}"

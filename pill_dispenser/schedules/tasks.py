@@ -8,7 +8,8 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth import get_user_model
 # Import your models
-from .models import DosageSchedule, Medication, UserProfile,MedicationEvent
+from .models import DosageSchedule, Medication, UserProfile, MedicationEvent
+from .notifications import send_expo_push_notification
 
 import logging
 from datetime import date, datetime, timedelta 
@@ -41,6 +42,8 @@ def send_reminder_emails_task(self):
     failed_esp_signals = 0
     sent_stock_alerts = 0
     medication_events_created = 0
+    sent_push_notifications = 0
+    failed_push_notifications = 0
 
     if not schedules_due_now.exists():
         logger.info("No medication schedules due at this exact minute.")
@@ -82,6 +85,21 @@ def send_reminder_emails_task(self):
                     failed_reminders += 1
             else:
                 logger.warning(f"Skipping reminder email for schedule {schedule.id}. User {user.username} is inactive or has no email.")
+
+            # --- Send push notification for medication reminder (independent of email) ---
+            try:
+                expo_token = getattr(profile, 'expo_push_token', None) if profile else None
+                if expo_token:
+                    push_title = f"💊 Time for {medication.name}!"
+                    push_body = f"Take {schedule.amount} units now. Stock: {medication.stock}"
+                    send_expo_push_notification(expo_token, push_title, push_body)
+                    logger.info(f"Sent push notification to user {user.username} for schedule ID {schedule.id}")
+                    sent_push_notifications += 1
+                else:
+                    logger.debug(f"No expo push token for user {user.username}. Skipping push notification.")
+            except Exception as push_exc:
+                logger.error(f"Failed to send push notification for schedule ID {schedule.id}: {push_exc}", exc_info=True)
+                failed_push_notifications += 1
 
             #Signaling ESP32
             esp_ip = getattr(profile, 'esp32_ip_address', None) if profile else None
@@ -149,6 +167,19 @@ def send_reminder_emails_task(self):
                                 sent_stock_alerts += 1
                             except Exception as stock_mail_exc:
                                 logger.error(f"Failed to send stock alert email for '{medication.name}' (ID: {medication.id}) to {user.email}: {stock_mail_exc}", exc_info=True)
+
+                            # --- Send push notification for low stock alert ---
+                            try:
+                                expo_token = getattr(profile, 'expo_push_token', None) if profile else None
+                                if expo_token:
+                                    stock_push_title = f"⚠️ Low Stock: {medication.name}"
+                                    stock_push_body = f"Only {medication.stock} left (threshold: {medication.reminder}). Please refill soon!"
+                                    send_expo_push_notification(expo_token, stock_push_title, stock_push_body)
+                                    logger.info(f"Sent low stock push notification for '{medication.name}' to user {user.username}")
+                                    sent_push_notifications += 1
+                            except Exception as stock_push_exc:
+                                logger.error(f"Failed to send low stock push notification for '{medication.name}': {stock_push_exc}", exc_info=True)
+                                failed_push_notifications += 1
                     else:
                         logger.warning(f"Stock of '{medication.name}' is already 0. Not decrementing further.")
                         
@@ -248,6 +279,7 @@ def send_reminder_emails_task(self):
     result_message = (
         f"Dispenser Task finished check for {current_time_minute}. "
         f"Emails - Sent: {sent_reminders}, Failed: {failed_reminders}. "
+        f"Push Notifications - Sent: {sent_push_notifications}, Failed: {failed_push_notifications}. "
         f"ESP32 Signals - Sent: {sent_esp_signals}, Failed: {failed_esp_signals}. "
         f"Stock Alerts - Sent: {sent_stock_alerts}. "
         f"Medication Events - Created: {medication_events_created}."
@@ -295,6 +327,19 @@ def send_medication_schedule_reminder(self, schedule_id):
             fail_silently=False,
         )
         logger.info(f"Successfully sent medication reminder to {user.email} for schedule {schedule_id}")
+
+        # --- Send push notification for advance reminder ---
+        try:
+            profile = getattr(user, 'profile', None)
+            expo_token = getattr(profile, 'expo_push_token', None) if profile else None
+            if expo_token:
+                push_title = f"💊 Upcoming: {medication.name}"
+                push_body = f"Take {schedule.amount} units of {medication.name} at {dose_time_str} ({schedule.day})"
+                send_expo_push_notification(expo_token, push_title, push_body)
+                logger.info(f"Sent push notification for advance reminder (schedule {schedule_id}) to user {user.username}")
+        except Exception as push_exc:
+            logger.error(f"Failed to send push notification for advance reminder (schedule {schedule_id}): {push_exc}", exc_info=True)
+
         return f"Sent medication reminder to {user.email} for schedule {schedule_id}"
 
     except DosageSchedule.DoesNotExist:
@@ -340,7 +385,19 @@ def send_single_reminder(self, user_id):
             fail_silently=False,
         )
         logger.info(f"Successfully sent single reminder to {user.email}")
-        # Update state if needed
+
+        # --- Send push notification for single reminder ---
+        try:
+            profile = getattr(user, 'profile', None)
+            expo_token = getattr(profile, 'expo_push_token', None) if profile else None
+            if expo_token:
+                push_title = f"⏰ Reminder"
+                push_body = f"Hi {user.get_full_name() or user.username}, this is your scheduled reminder for {today}."
+                send_expo_push_notification(expo_token, push_title, push_body)
+                logger.info(f"Sent push notification for single reminder to user {user.username}")
+        except Exception as push_exc:
+            logger.error(f"Failed to send push notification for single reminder to user ID {user_id}: {push_exc}", exc_info=True)
+
         return f"Sent reminder to {user.email}"
 
     except UserModel.DoesNotExist:
