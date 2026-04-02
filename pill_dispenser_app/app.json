@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "pill_dispenser_app",
+    "name": "Medimate",
     "slug": "pill_dispenser_app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,21 +16,21 @@
       "package": "com.richasingh.medimate",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
