@@ -263,17 +263,15 @@ def register_esp32(request):
     """
     device_id = request.data.get("device_id")
     ip_address = request.data.get("ip_address")
-    username = request.data.get("username")
 
-    if not all([device_id, ip_address, username]):
+    if not all([device_id, ip_address]):
         return Response(
             {"error": "Missing fields"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        user = User.objects.get(username=username)
-        profile = user.profile
+        profile = UserProfile.objects.get(device_id=device_id)
 
         # save IP dynamically
         profile.esp32_ip_address = ip_address
@@ -284,9 +282,9 @@ def register_esp32(request):
             "ip": ip_address
         })
 
-    except User.DoesNotExist:
+    except UserProfile.DoesNotExist:
         return Response(
-            {"error": "User not found"},
+            {"error": "Device ID not found or not paired to any user."},
             status=status.HTTP_404_NOT_FOUND
         )
 

@@ -58,6 +58,13 @@ class UserProfile(models.Model):
         null=True,
         help_text="Expo push notification token for this user."
     )
+    device_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Unique hardware ID of the physical ESP32 dispenser associated with this user."
+    )
 
     def __str__(self):
         return f"Profile for {self.user.username}"
