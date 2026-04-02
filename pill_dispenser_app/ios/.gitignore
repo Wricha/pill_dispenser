@@ -28,3 +28,9 @@ project.xcworkspace
 
 # CocoaPods
 /Pods/
+
+# Firebase secrets
+*.json
+google-services.json
+firebase-adminsdk*.json
+.env

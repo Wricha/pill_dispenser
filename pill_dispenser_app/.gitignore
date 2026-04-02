@@ -36,3 +36,9 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+# Firebase secrets
+*.json
+google-services.json
+firebase-adminsdk*.json
+.env
+medimate-42843-firebase-adminsdk-fbsvc-d8c3bc9eb2.json
