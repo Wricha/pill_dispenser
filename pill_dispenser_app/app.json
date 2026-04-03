@@ -16,7 +16,7 @@
       "package": "com.richasingh.medimate",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/adaptive_icon.png",
         "backgroundColor": "#ffffff"
       }
     },
