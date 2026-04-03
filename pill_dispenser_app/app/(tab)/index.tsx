@@ -14,15 +14,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from "expo-router";
-import axios from 'axios';
-import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT } from '../../utils/apiConfig';
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api, MEDICATIONS_PATH, PRESCRIPTION_PROCESS_PATH, getBaseUrl } from '../../utils/apiConfig';
+import ServerSettingsModal from '../../components/ServerSettingsModal';
 
 const HomeScreen = () => {
   const [medications, setMedications] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -44,7 +45,7 @@ const HomeScreen = () => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) { setError("User not authenticated."); setMedications([]); return; }
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const response = await axios.get(`${API_BASE_URL}/api/medications/`, config);
+      const response = await api.get(MEDICATIONS_PATH, config);
       setMedications(response.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -77,7 +78,7 @@ const HomeScreen = () => {
             setIsLoading(true);
             const token = await AsyncStorage.getItem('accessToken');
             if (!token) { Alert.alert("Authentication Required", "Please log in."); return; }
-            await axios.delete(`${API_BASE_URL}/api/medications/${medicationId}/`, {
+            await api.delete(`${MEDICATIONS_PATH}${medicationId}/`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             setMedications(prev => prev.filter(med => med.id !== medicationId));
@@ -118,12 +119,12 @@ const HomeScreen = () => {
     try {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) { Alert.alert("Authentication Required", "Please log in."); return; }
-      const response = await axios.post(`${API_BASE_URL}/api/prescriptions/process/`, formData, {
+      const response = await api.post(PRESCRIPTION_PROCESS_PATH, formData, {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
       const backendImageUrl = response.data.image_url;
       const fullImageUrl = backendImageUrl?.startsWith('http')
-        ? backendImageUrl : `${API_BASE_URL}${backendImageUrl}`;
+        ? backendImageUrl : `${getBaseUrl()}${backendImageUrl}`;
       router.push({
         pathname: "/prescription",
         params: { prescriptionId: response.data.prescription_id, imageUri: fullImageUrl }
@@ -176,8 +177,16 @@ const HomeScreen = () => {
             <Text style={styles.greetingText}>Hello 👋</Text>
             <Text style={styles.headerTitle}>Your Medications</Text>
           </View>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person-circle" size={44} color="#4A90E2" />
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              onPress={() => setIsSettingsModalVisible(true)} 
+              style={styles.settingsButton}
+            >
+              <Ionicons name="settings-outline" size={28} color="#555" />
+            </TouchableOpacity>
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person-circle" size={44} color="#4A90E2" />
+            </View>
           </View>
         </View>
 
@@ -252,6 +261,11 @@ const HomeScreen = () => {
           </ScrollView>
         )}
 
+        <ServerSettingsModal 
+          visible={isSettingsModalVisible} 
+          onClose={() => setIsSettingsModalVisible(false)} 
+        />
+
         {/* FAB — positioned above the tab bar */}
         <TouchableOpacity
           style={[styles.fab, { bottom: TAB_BAR_HEIGHT + 16 }]}
@@ -283,9 +297,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingsButton: {
+    padding: 8,
+    marginRight: 4,
+  },
   greetingText: { fontSize: 16, color: '#888', marginBottom: 2, fontWeight: '500' },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#333' },
-  avatarContainer: { marginLeft: 10, backgroundColor: '#F0F7FF', borderRadius: 22, padding: 2 },
+  avatarContainer: { backgroundColor: '#F0F7FF', borderRadius: 22, padding: 2 },
   uploadSection: {
     backgroundColor: 'white', borderRadius: 12, marginBottom: 24,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },

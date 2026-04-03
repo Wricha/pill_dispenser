@@ -3,10 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
-import axios from 'axios';
+import { api, MEDICATIONS_PATH } from '../utils/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT } from '../utils/apiConfig';
 
 const formatTime = (date) => {
   if (!date) return '00:00';
@@ -52,7 +51,7 @@ const MedicationUpdateScreen = () => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) throw new Error("User not authenticated.");
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const response = await axios.get(`${API_BASE_URL}/api/medications/${medicationId}`, config);
+      const response = await api.get(`${MEDICATIONS_PATH}${medicationId}/`, config);
 
       setMedicineName(response.data.name || '');
       setSelectedDays(response.data.selected_days || []);
@@ -120,7 +119,7 @@ const MedicationUpdateScreen = () => {
       if (updatedData.dosages.length === 0) throw new Error("Please add at least one dosage time.");
 
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const response = await axios.put(`${API_BASE_URL}/api/medications/${medicationId}/`, updatedData, config);
+      const response = await api.put(`${MEDICATIONS_PATH}${medicationId}/`, updatedData, config);
 
       if (response.status === 200) {
         Alert.alert('Success', 'Medication updated successfully!');

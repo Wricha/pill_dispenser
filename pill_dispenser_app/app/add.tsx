@@ -6,12 +6,11 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import axios from "axios"
+import { api, MEDICATIONS_PATH } from '../utils/apiConfig'
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import DateTimePicker from "@react-native-community/datetimepicker"
-import { MEDICATIONS_ENDPOINT } from '../utils/apiConfig'
 
-const parseTimeString = (timeString = "09:00") => {
+const parseTimeString = (timeString: string = "09:00"): Date => {
   const [hours, minutes] = timeString.split(":").map(Number)
   const date = new Date()
   date.setHours(hours || 9)
@@ -21,7 +20,7 @@ const parseTimeString = (timeString = "09:00") => {
   return date
 }
 
-const formatTime = (date) => {
+const formatTime = (date: Date): string => {
   if (!date) return "00:00"
   const hours = date.getHours().toString().padStart(2, "0")
   const minutes = date.getMinutes().toString().padStart(2, "0")
@@ -34,8 +33,8 @@ const MedicationDetailScreen = () => {
 
 
   const [medicineName, setMedicineName] = useState("")
-  const [selectedDays, setSelectedDays] = useState([])
-  const [dosages, setDosages] = useState([{ id: Date.now(), amount: 1, time: "09:00" }])
+  const [selectedDays, setSelectedDays] = useState<string[]>([])
+  const [dosages, setDosages] = useState<any[]>([{ id: Date.now(), amount: 1, time: "09:00" }])
   const [stock, setStock] = useState(10)
   const [reminder, setReminder] = useState(5)
   const [isLoading, setIsLoading] = useState(false)
@@ -59,7 +58,7 @@ const MedicationDetailScreen = () => {
         setIsLoading(false)
         return
       }
-    } catch (e) {
+    } catch (e: any) {
       Alert.alert("Error", "Failed to retrieve user session.")
       setIsLoading(false)
       return
@@ -68,7 +67,7 @@ const MedicationDetailScreen = () => {
     const data = {
       name: medicineName,
       selected_days: selectedDays,
-      dosages: dosages.map((d) => ({ amount: d.amount, time: d.time })),
+      dosages: dosages.map((d: any) => ({ amount: d.amount, time: d.time })),
       stock,
       reminder,
       user: userId,
@@ -84,15 +83,15 @@ const MedicationDetailScreen = () => {
     }
 
     try {
-      const response = await axios.get(MEDICATIONS_ENDPOINT, config)
-      const existingSlot = response.data.find(med => med.dispenser_slot === slotNumber)
+      const response = await api.get(MEDICATIONS_PATH, config)
+      const existingSlot = response.data.find((med: any) => med.dispenser_slot === slotNumber)
       if (existingSlot) {
         Alert.alert("Validation Error", "This slot is already assigned. Please select a different slot.")
         setIsLoading(false)
         return
       }
       await saveMedication(data, config)
-    } catch (error) {
+    } catch (error: any) {
       if (error.response?.status === 401 || error.response?.status === 403) {
         Alert.alert("Authentication Failed", "Your session may have expired.")
         router.replace("/login")
@@ -103,22 +102,22 @@ const MedicationDetailScreen = () => {
     }
   }
 
-  const saveMedication = async (data, config) => {
+  const saveMedication = async (data: any, config: any) => {
     try {
-      const response = await axios.post(MEDICATIONS_ENDPOINT, data, config)
+      const response = await api.post(MEDICATIONS_PATH, data, config)
       if (response.status === 201) {
         Alert.alert("Success", "Medication saved successfully!")
         router.canGoBack() ? router.back() : router.replace("/(tab)")
       } else {
         Alert.alert("Save Failed", `Server responded with status: ${response.status}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.response?.status === 401 || error.response?.status === 403) {
         Alert.alert("Authentication Failed", "Your session may have expired.")
         router.replace("/login")
       } else if (error.response?.data) {
         const errorMessages = Object.entries(error.response.data)
-          .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
+          .map(([field, messages]: [string, any]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
           .join("\n")
         Alert.alert("Save Failed", errorMessages || "Unknown server error")
       } else {
@@ -129,31 +128,31 @@ const MedicationDetailScreen = () => {
     }
   }
 
-  const toggleDay = (day) => {
-    setSelectedDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+  const toggleDay = (day: string) => {
+    setSelectedDays((prev: string[]) =>
+      prev.includes(day) ? prev.filter((d: string) => d !== day) : [...prev, day]
     )
   }
 
-  const adjustValue = (setter, currentValue, increment, min = 0, max = Number.POSITIVE_INFINITY) => {
+  const adjustValue = (setter: any, currentValue: number, increment: number, min: number = 0, max: number = Number.POSITIVE_INFINITY) => {
     setter(Math.min(max, Math.max(min, currentValue + increment)))
   }
 
   const addDosageRow = () => setDosages([...dosages, { id: Date.now(), amount: 1, time: "08:00" }])
 
-  const removeDosageRow = (idToRemove) => {
+  const removeDosageRow = (idToRemove: number) => {
     if (dosages.length <= 1) { Alert.alert("Cannot Remove", "You must have at least one dosage time."); return }
-    setDosages(dosages.filter(d => d.id !== idToRemove))
+    setDosages(dosages.filter((d: any) => d.id !== idToRemove))
   }
 
-  const openTimePicker = (index) => {
+  const openTimePicker = (index: number) => {
     if (isLoading) return
     setEditingDosageIndex(index)
     setPickerDate(parseTimeString(dosages[index]?.time || "09:00"))
     setShowPicker(true)
   }
 
-  const onTimeChange = (event, selectedDate) => {
+  const onTimeChange = (event: any, selectedDate: any) => {
     if (Platform.OS === "android") setShowPicker(false)
     if (event.type === "set" && selectedDate) {
       if (editingDosageIndex >= 0) {

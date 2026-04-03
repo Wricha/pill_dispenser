@@ -6,9 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from "expo-router";
-import axios from 'axios';
+import { api, MEDICATIONS_PATH } from '../../utils/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT } from '../../utils/apiConfig';
 
 const RefillScreen = () => {
   const [medications, setMedications] = useState([]);
@@ -27,7 +26,7 @@ const RefillScreen = () => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) throw new Error("User not authenticated.");
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const response = await axios.get(MEDICATIONS_ENDPOINT, config);
+      const response = await api.get(MEDICATIONS_PATH, config);
       setMedications(response.data);
     } catch (err) {
       console.error("RefillScreen error:", err.response?.data || err.message);
@@ -57,7 +56,7 @@ const RefillScreen = () => {
       const token = await AsyncStorage.getItem('accessToken');
       if (!token) { Alert.alert("Authentication Required", "Please log in."); return; }
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
-      const response = await axios.patch(`${MEDICATIONS_ENDPOINT}${medicationId}/`, { stock: newStock }, config);
+      const response = await api.patch(`${MEDICATIONS_PATH}${medicationId}/`, { stock: newStock }, config);
       if (response.status === 200) {
         setMedications(prev =>
           prev.map(med => med.id === medicationId ? { ...med, stock: newStock } : med)

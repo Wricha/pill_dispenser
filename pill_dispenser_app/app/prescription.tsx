@@ -2,9 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../utils/apiConfig';
+import { api, MEDICATIONS_PATH } from '../utils/apiConfig';
 
 const PrescriptionReviewScreen = () => {
     const params = useLocalSearchParams();
@@ -113,8 +111,8 @@ const PrescriptionReviewScreen = () => {
                 return;
             }
             const config = { headers: { 'Authorization': `Bearer ${token}` } };
-            const response = await axios.get(
-                `${API_BASE_URL}/api/prescriptions/${prescriptionId}/medicines/`,
+            const response = await api.get(
+                `/api/prescriptions/${prescriptionId}/medicines/`,
                 config
             );
             setDetectedMedicines(response.data);
@@ -132,7 +130,7 @@ const PrescriptionReviewScreen = () => {
             const token = await AsyncStorage.getItem('accessToken');
             if (!token) return;
             const config = { headers: { 'Authorization': `Bearer ${token}` } };
-            const response = await axios.get(MEDICATIONS_ENDPOINT, config);
+            const response = await api.get(MEDICATIONS_PATH, config);
             if (Array.isArray(response.data)) {
                 setSavedMedicationNames(new Set(response.data.map(med => med.name)));
             }

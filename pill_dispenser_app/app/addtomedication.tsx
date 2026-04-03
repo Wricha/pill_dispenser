@@ -4,10 +4,9 @@ import { useState } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Platform } from "react-native"
 import { Feather } from "@expo/vector-icons"
 import { useRouter, useLocalSearchParams } from "expo-router"
-import axios from "axios"
+import { api, MEDICATIONS_PATH } from '../utils/apiConfig';
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import DateTimePicker from "@react-native-community/datetimepicker"
-import { API_BASE_URL, MEDICATIONS_ENDPOINT } from '../utils/apiConfig';
 
 const parseTimeString = (timeString = "09:00") => {
   const [hours, minutes] = timeString.split(":").map(Number)
@@ -103,7 +102,7 @@ const MedicationDetailScreen = () => {
     }
 
     try {
-      const response = await axios.get(MEDICATIONS_ENDPOINT, config)
+      const response = await api.get(MEDICATIONS_PATH, config)
       const medications = response.data
       const existingSlot = medications.find(med => med.dispenser_slot === slotNumber)
       if (existingSlot) {
@@ -126,7 +125,7 @@ const MedicationDetailScreen = () => {
 
   const saveMedication = async (data, config) => {
     try {
-      const response = await axios.post(MEDICATIONS_ENDPOINT, data, config)
+      const response = await api.post(MEDICATIONS_PATH, data, config)
       if (response.status === 201) {
         Alert.alert("Success", "Medication saved successfully!")
         if (router.canGoBack()) {

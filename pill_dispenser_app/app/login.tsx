@@ -3,10 +3,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LOGIN_ENDPOINT } from '../utils/apiConfig';
+import { api, LOGIN_PATH } from '../utils/apiConfig';
 import { registerPushToken } from '../utils/registerPushToken';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── No named export — default only, required by Expo Router ──────────────────
 const Login = () => {
@@ -22,12 +21,12 @@ const Login = () => {
     }
 
     console.log('=== LOGIN STARTED ===');
-    console.log('Endpoint:', LOGIN_ENDPOINT);
+    console.log('Endpoint:', `${api.defaults.baseURL}${LOGIN_PATH}`);
     setLoading(true);
 
     try {
       console.log('Making API call...');
-      const res = await axios.post(LOGIN_ENDPOINT, { username, password });
+      const res = await api.post(LOGIN_PATH, { username, password });
       console.log('Login Response:', res.status, res.data);
 
       const token = res.data.access;
@@ -45,14 +44,14 @@ const Login = () => {
       try {
         await registerPushToken();
         console.log('Push token registered successfully');
-      } catch (notifError) {
+      } catch (notifError: any) {
         console.warn("Push notification registration failed:", notifError);
       }
 
       console.log('Navigating to tabs...');
       router.replace("/(tab)");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error.response?.data || error.message);
 
       let errorMessage = 'An error occurred. Please try again.';

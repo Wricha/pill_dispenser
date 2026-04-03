@@ -14,17 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT } from '../../utils/apiConfig';
+import { api, MEDICATIONS_PATH, TOKEN_REFRESH_PATH, getBaseUrl } from '../../utils/apiConfig';
 
 const MedicationStatusScreen = () => {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [todayDate, setTodayDate] = useState('');
-  const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<any>(null);
   const insets = useSafeAreaInsets();
 
   const TAB_BAR_HEIGHT = 60 + insets.bottom;
@@ -63,7 +62,7 @@ const MedicationStatusScreen = () => {
     try {
       const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
       if (!storedRefreshToken) throw new Error("No refresh token available");
-      const response = await axios.post(TOKEN_REFRESH_ENDPOINT, { refresh: storedRefreshToken });
+      const response = await api.post(TOKEN_REFRESH_PATH, { refresh: storedRefreshToken });
       if (response.data.access) {
         await AsyncStorage.setItem('accessToken', response.data.access);
         return response.data.access;
@@ -76,13 +75,13 @@ const MedicationStatusScreen = () => {
     }
   };
 
-  const makeAuthenticatedRequest = async (requestFunction) => {
+  const makeAuthenticatedRequest = async (requestFunction: any) => {
     let token = await AsyncStorage.getItem('accessToken');
     if (!token) throw new Error("User not authenticated.");
     let config = { headers: { 'Authorization': `Bearer ${token}` } };
     try {
       return await requestFunction(config);
-    } catch (error) {
+    } catch (error: any) {
       if (error.response && error.response.status === 401) {
         const newToken = await refreshToken();
         config = { headers: { 'Authorization': `Bearer ${newToken}` } };
@@ -92,21 +91,21 @@ const MedicationStatusScreen = () => {
     }
   };
 
-  const processMedicationStatus = (medicationsData) => {
+  const processMedicationStatus = (medicationsData: any) => {
     const today = new Date();
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
     const todayDateStr = today.toISOString().split('T')[0];
 
-    return medicationsData.map(med => {
+    return medicationsData.map((med: any) => {
       const isScheduledToday = Array.isArray(med.selected_days) &&
-        med.selected_days.some(day => day.toLowerCase().includes(dayOfWeek));
+        med.selected_days.some((day: any) => day.toLowerCase().includes(dayOfWeek));
 
       let status = 'not_applicable';
 
       if (isScheduledToday) {
         status = 'not_taken';
         if (Array.isArray(med.events) && med.events.length > 0) {
-          const dispensedToday = med.events.some(event => {
+          const dispensedToday = med.events.some((event: any) => {
             const eventDate = (event.timestamp || '').split('T')[0];
             return eventDate === todayDateStr && event.success === true;
           });
@@ -123,11 +122,11 @@ const MedicationStatusScreen = () => {
     setError(null);
     try {
       await debugTokens();
-      const response = await makeAuthenticatedRequest(async (config) => {
-        return await axios.get(MEDICATIONS_ENDPOINT, config);
+      const response = await makeAuthenticatedRequest(async (config: any) => {
+        return await api.get(MEDICATIONS_PATH, config);
       });
       setMedications(processMedicationStatus(response.data));
-    } catch (err) {
+    } catch (err: any) {
       if (err.message.includes("Token refresh failed") || err.message === "User not authenticated.") {
         setError("Please log in again.");
       } else if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -160,19 +159,19 @@ const MedicationStatusScreen = () => {
     setRefreshing(false);
   };
 
-  const dispenseAndRecord = async (medicationId) => {
+  const dispenseAndRecord = async (medicationId: any) => {
     setUpdatingStatusId(medicationId);
     try {
-      await makeAuthenticatedRequest(async (config) => {
-        return await axios.post(
-          `${API_BASE_URL}/api/dispense-and-record/`,
+      await makeAuthenticatedRequest(async (config: any) => {
+        return await api.post(
+          '/api/dispense-and-record/',
           { medication_id: medicationId },
           config
         );
       });
       await fetchMedications();
       Alert.alert("Success", "Medication dispensed and recorded successfully!");
-    } catch (error) {
+    } catch (error: any) {
       if (error.message.includes("Token refresh failed") || error.message === "User not authenticated.") {
         Alert.alert("Authentication Required", "Please log in again.");
       } else if (error.response?.data?.detail) {
@@ -185,13 +184,13 @@ const MedicationStatusScreen = () => {
     }
   };
 
-  const updateMedicationStatus = async (medicationId, currentStatus) => {
+  const updateMedicationStatus = async (medicationId: any, currentStatus: any) => {
     if (currentStatus !== 'not_taken') return;
     setUpdatingStatusId(medicationId);
     try {
-      const response = await makeAuthenticatedRequest(async (config) => {
-        return await axios.post(
-          `${API_BASE_URL}/api/medication-events/`,
+      const response = await makeAuthenticatedRequest(async (config: any) => {
+        return await api.post(
+          '/api/medication-events/',
           { medication: medicationId, success: true, amount: 1 },
           config
         );
@@ -199,14 +198,14 @@ const MedicationStatusScreen = () => {
       if (response.status === 201 || response.status === 200) {
         await fetchMedications();
       }
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert("Error", "Failed to update medication status. Please try again.");
     } finally {
       setUpdatingStatusId(null);
     }
   };
 
-  const renderStatusIcon = (status) => {
+  const renderStatusIcon = (status: any) => {
     switch (status) {
       case 'dispensed':
         return <Ionicons name="checkmark-circle" size={28} color="#4CAF50" />;
@@ -219,7 +218,7 @@ const MedicationStatusScreen = () => {
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status: any) => {
     switch (status) {
       case 'dispensed': return 'Dispensed';
       case 'not_taken': return 'Not Taken';
@@ -228,7 +227,7 @@ const MedicationStatusScreen = () => {
     }
   };
 
-  const renderItem = ({ item }) => {
+  const renderItem = ({ item }: { item: any }) => {
     const isUpdating = updatingStatusId === item.id;
     return (
       <View style={styles.medicationCard}>

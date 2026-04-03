@@ -1,25 +1,24 @@
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, MEDICATIONS_ENDPOINT, TOKEN_REFRESH_ENDPOINT, LOGIN_ENDPOINT, REGISTER_ENDPOINT } from './apiConfig';
+import { api, REGISTER_PATH, LOGIN_PATH } from './apiConfig';
 
-export const registerUser = async (username, email, password, passwordConfirmation) => {
+export const registerUser = async (username: any, email: any, password: any, passwordConfirmation: any) => {
   try {
-    const response = await axios.post(REGISTER_ENDPOINT, {
+    const response = await api.post(REGISTER_PATH, {
       username,
       email,
       password,
       confirm_password: passwordConfirmation
     });
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Registration API error:", error.response?.data || error.message);
     throw error.response ? error.response.data : new Error('Network error during registration');
   }
 };
 
-export const loginUser = async (username, password) => {
+export const loginUser = async (username: any, password: any) => {
   try {
-    const loginResponse = await axios.post(LOGIN_ENDPOINT, {
+    const loginResponse = await api.post(LOGIN_PATH, {
       username,
       password
     });
@@ -34,7 +33,7 @@ export const loginUser = async (username, password) => {
       throw new Error('Access token not received');
     }
     return loginResponse.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Login API error:", error.response?.data || error.message);
     throw error.response ? error.response.data : new Error('Network error during login');
   }
@@ -46,13 +45,13 @@ export const getUserDetails = async () => {
     if (!token) {
       throw new Error('No access token found');
     }
-    const response = await axios.get(`${API_BASE_URL}user/`, {
+    const response = await api.get('/api/user/', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Get User Details API error:", error.response?.data || error.message);
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       await AsyncStorage.removeItem('accessToken');
