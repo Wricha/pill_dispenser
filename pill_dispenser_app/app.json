@@ -15,6 +15,7 @@
     "android": {
       "package": "com.richasingh.medimate",
       "googleServicesFile": "./google-services.json",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive_icon.png",
         "backgroundColor": "#ffffff"
