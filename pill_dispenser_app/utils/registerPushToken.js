@@ -1,9 +1,8 @@
 // utils/registerPushToken.js
 import * as Notifications from 'expo-notifications';
-import axios from 'axios';
+import { api } from './apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { API_BASE_URL } from './apiConfig';
 
 export const registerPushToken = async () => {
     try {
@@ -27,8 +26,8 @@ export const registerPushToken = async () => {
 
         // 3. Save to backend
         const accessToken = await AsyncStorage.getItem('accessToken');
-        await axios.post(
-            `${API_BASE_URL}/api/save-push-token/`,
+        await api.post(
+            '/api/save-push-token/',
             { expo_push_token: token },
             { headers: { Authorization: `Bearer ${accessToken}` } }
         );
