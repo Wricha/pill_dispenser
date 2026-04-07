@@ -104,12 +104,8 @@ const MedicationStatusScreen = () => {
 
       if (isScheduledToday) {
         status = 'not_taken';
-        if (Array.isArray(med.events) && med.events.length > 0) {
-          const dispensedToday = med.events.some((event: any) => {
-            const eventDate = (event.timestamp || '').split('T')[0];
-            return eventDate === todayDateStr && event.success === true;
-          });
-          if (dispensedToday) status = 'dispensed';
+        if (Array.isArray(med.status_today) && med.status_today.length > 0) {
+          status = 'dispensed';
         }
       }
 

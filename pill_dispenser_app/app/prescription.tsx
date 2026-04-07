@@ -3,12 +3,26 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, Alert } fr
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api, MEDICATIONS_PATH } from '../utils/apiConfig';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+interface Medicine {
+    id: number;
+    name: string;
+    frequency: string;
+    bbox_x: number;
+    bbox_y: number;
+    bbox_width: number;
+    bbox_height: number;
+    confidence: number;
+}
 
 const PrescriptionReviewScreen = () => {
     const params = useLocalSearchParams();
-    const { prescriptionId, imageUri } = params;
+    const prescriptionId = Array.isArray(params.prescriptionId) ? params.prescriptionId[0] : params.prescriptionId;
+    const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
+    
     const router = useRouter();
-    const [detectedMedicines, setDetectedMedicines] = useState([]);
+    const [detectedMedicines, setDetectedMedicines] = useState<Medicine[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [imageWidth, setImageWidth] = useState(0);
     const [imageHeight, setImageHeight] = useState(0);
@@ -76,7 +90,7 @@ const PrescriptionReviewScreen = () => {
     };
 
     // ── Navigation — now passes frequency-derived days too ───────────────────
-    const navigateToMedicationForm = (medicine) => {
+    const navigateToMedicationForm = (medicine: Medicine) => {
         const nameToPass = typeof medicine.name === 'string' ? medicine.name : '';
         if (!nameToPass) {
             Alert.alert("Cannot Add", "Medicine name is missing.");
@@ -101,23 +115,32 @@ const PrescriptionReviewScreen = () => {
 
     // ── Fetch detected medicines ──────────────────────────────────────────────
     const fetchDetectedMedicines = async () => {
+        if (!prescriptionId) {
+            console.error("DEBUG: No prescriptionId found in params!");
+            setIsLoading(false);
+            return;
+        }
+
+        console.log(`DEBUG: Fetching medicines for Prescription ID: ${prescriptionId}`);
         setIsLoading(true);
         try {
             const token = await AsyncStorage.getItem('accessToken');
             if (!token) {
+                console.error("DEBUG: No access token found during fetch.");
                 Alert.alert("Authentication Required", "Please log in.");
                 router.replace('/login');
                 setIsLoading(false);
                 return;
             }
             const config = { headers: { 'Authorization': `Bearer ${token}` } };
-            const response = await api.get(
-                `/api/prescriptions/${prescriptionId}/medicines/`,
-                config
-            );
+            const fetchUrl = `/api/prescriptions/${prescriptionId}/medicines/`;
+            console.log(`DEBUG: API GET call to: ${fetchUrl}`);
+            
+            const response = await api.get(fetchUrl, config);
+            console.log("DEBUG: Response from medicines fetch:", response.data);
             setDetectedMedicines(response.data);
-        } catch (error) {
-            console.error("Error fetching detected medicines:", error);
+        } catch (error: any) {
+            console.error("Error fetching detected medicines:", error.response?.data || error.message);
             Alert.alert("Error", "Failed to fetch detected medicines for this prescription.");
         } finally {
             setIsLoading(false);
@@ -141,15 +164,15 @@ const PrescriptionReviewScreen = () => {
 
     useEffect(() => {
         fetchDetectedMedicines();
-        if (!params.imageUri) {
+        if (!imageUri) {
             setIsLoading(false);
             return;
         }
-        fetch(params.imageUri)
+        fetch(imageUri)
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                 Image.getSize(
-                    params.imageUri,
+                    imageUri,
                     (width, height) => { setImageWidth(width); setImageHeight(height); },
                     (error) => console.error("Image.getSize error:", error)
                 );
@@ -158,7 +181,7 @@ const PrescriptionReviewScreen = () => {
                 console.error("Image fetch failed:", error);
                 Alert.alert("Image Error", `Could not access image: ${error.message}`);
             });
-    }, [params.prescriptionId, params.imageUri]);
+    }, [prescriptionId, imageUri]);
 
     useFocusEffect(
         useCallback(() => {

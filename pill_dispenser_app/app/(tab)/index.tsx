@@ -20,9 +20,9 @@ import { api, MEDICATIONS_PATH, PRESCRIPTION_PROCESS_PATH, getBaseUrl } from '..
 import ServerSettingsModal from '../../components/ServerSettingsModal';
 
 const HomeScreen = () => {
-  const [medications, setMedications] = useState([]);
+  const [medications, setMedications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -47,7 +47,7 @@ const HomeScreen = () => {
       const config = { headers: { 'Authorization': `Bearer ${token}` } };
       const response = await api.get(MEDICATIONS_PATH, config);
       setMedications(response.data);
-    } catch (err) {
+    } catch (err: any) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setError("Authentication failed. Please log in again.");
         await AsyncStorage.removeItem('accessToken');
@@ -125,11 +125,17 @@ const HomeScreen = () => {
       const backendImageUrl = response.data.image_url;
       const fullImageUrl = backendImageUrl?.startsWith('http')
         ? backendImageUrl : `${getBaseUrl()}${backendImageUrl}`;
+      
+      console.log(`DEBUG: Prescription processed. ID: ${response.data.prescription_id}. Navigating...`);
+      
       router.push({
         pathname: "/prescription",
-        params: { prescriptionId: response.data.prescription_id, imageUri: fullImageUrl }
+        params: { 
+          prescriptionId: String(response.data.prescription_id), 
+          imageUri: fullImageUrl 
+        }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing prescription:", error.response?.data || error.message);
       Alert.alert("Error", "Failed to process prescription image.");
       if (error.response?.status === 401 || error.response?.status === 403) {
@@ -241,11 +247,16 @@ const HomeScreen = () => {
                 <View style={styles.medicationDetails}>
                   <Text style={styles.medicationName}>{medication.name}</Text>
                   <View style={styles.timeContainer}>
-                    {(medication.dosages || []).map((dosage, idx) => (
-                      <View key={idx} style={styles.timeButton}>
-                        <Text style={styles.timeText}>{formatTime(dosage.time)}</Text>
-                      </View>
-                    ))}
+                    {(medication.dosages || []).map((dosage, idx) => {
+                      const formattedTime = formatTime(dosage.time);
+                      const isTaken = (medication.status_today || []).includes(formattedTime);
+                      return (
+                        <View key={idx} style={[styles.timeButton, isTaken && styles.timeButtonTaken]}>
+                          {isTaken && <Feather name="check" size={12} color="#4CAF50" style={{ marginRight: 4 }} />}
+                          <Text style={[styles.timeText, isTaken && styles.timeTextTaken]}>{formattedTime}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
                 <View style={styles.actionButtons}>
@@ -346,6 +357,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4, paddingHorizontal: 10, marginRight: 6, marginBottom: 4,
   },
   timeText: { fontSize: 12, color: '#666', fontWeight: '500' },
+  timeButtonTaken: { backgroundColor: '#E8F5E9', borderColor: '#C8E6C9', borderWidth: 1, flexDirection: 'row', alignItems: 'center' },
+  timeTextTaken: { color: '#4CAF50', fontWeight: '700' },
   actionButtons: { flexDirection: 'row', alignItems: 'center' },
   editButton: { padding: 8, borderRadius: 20, backgroundColor: '#F5F5F5', marginRight: 8 },
   deleteButton: { padding: 8, borderRadius: 20, backgroundColor: '#FFF0F0' },

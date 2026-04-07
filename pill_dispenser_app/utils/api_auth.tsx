@@ -23,8 +23,10 @@ export const loginUser = async (username: any, password: any) => {
       password
     });
     if (loginResponse.data.access) {
-      const tokenToSave = loginResponse.data.access;
-      await AsyncStorage.setItem('accessToken', tokenToSave);
+      await AsyncStorage.setItem('accessToken', loginResponse.data.access);
+      if (loginResponse.data.refresh) {
+        await AsyncStorage.setItem('refreshToken', loginResponse.data.refresh);
+      }
       const userId = loginResponse.data.user_id;
       if (userId) {
         await AsyncStorage.setItem('userId', String(userId));
