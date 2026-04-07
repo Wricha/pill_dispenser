@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 # Import your models
 from .models import DosageSchedule, Medication, UserProfile, MedicationEvent
-from .notifications import send_expo_push_notification
+from .notifications import send_expo_push_notification, check_and_send_low_stock_notification
 
 import logging
 from datetime import date, datetime, timedelta 
@@ -123,7 +123,7 @@ def send_reminder_emails_task(self):
                     
                     # updating stock count after successfull dispense
                     if medication.stock > 0:
-                        medication.stock -= 1
+                        medication.stock = max(0, medication.stock - int(schedule.amount))
                         medication.save()
                         stock_after = medication.stock
                         logger.info(f"Decreased stock of '{medication.name}' to {medication.stock} after successful dispense.")
@@ -145,41 +145,8 @@ def send_reminder_emails_task(self):
                             logger.error(f"Failed to create MedicationEvent for '{medication.name}' (ID: {medication.id}): {event_exc}", exc_info=True)
                         
                         # --- 5. CHECK IF STOCK IS BELOW REMINDER THRESHOLD ---
-                        if medication.stock <= medication.reminder:
-                            try:
-                                # Send stock alert email
-                                stock_subject = f"Low Stock Alert: Your {medication.name} is running low!"
-                                stock_message = (
-                                    f"Hi {user.username},\n\n"
-                                    f"Your medication '{medication.name}' is running low!\n\n"
-                                    f"Current Stock: {medication.stock}\n"
-                                    f"Reminder Threshold: {medication.reminder}\n\n"
-                                    f"Please refill your medication soon to ensure you don't run out.\n\n"
-                                    f"Best regards,\nYour Medimate App"
-                                )
-                                
-                                send_mail(
-                                    stock_subject, stock_message, settings.DEFAULT_FROM_EMAIL,
-                                    [user.email], fail_silently=False,
-                                )
-                                
-                                logger.info(f"Sent low stock alert email for '{medication.name}' (ID: {medication.id}) to {user.email}. Stock: {medication.stock}, Threshold: {medication.reminder}")
-                                sent_stock_alerts += 1
-                            except Exception as stock_mail_exc:
-                                logger.error(f"Failed to send stock alert email for '{medication.name}' (ID: {medication.id}) to {user.email}: {stock_mail_exc}", exc_info=True)
-
-                            # --- Send push notification for low stock alert ---
-                            try:
-                                expo_token = getattr(profile, 'expo_push_token', None) if profile else None
-                                if expo_token:
-                                    stock_push_title = f"⚠️ Low Stock: {medication.name}"
-                                    stock_push_body = f"Only {medication.stock} left (threshold: {medication.reminder}). Please refill soon!"
-                                    send_expo_push_notification(expo_token, stock_push_title, stock_push_body)
-                                    logger.info(f"Sent low stock push notification for '{medication.name}' to user {user.username}")
-                                    sent_push_notifications += 1
-                            except Exception as stock_push_exc:
-                                logger.error(f"Failed to send low stock push notification for '{medication.name}': {stock_push_exc}", exc_info=True)
-                                failed_push_notifications += 1
+                        check_and_send_low_stock_notification(medication)
+                        sent_stock_alerts += 1
                     else:
                         logger.warning(f"Stock of '{medication.name}' is already 0. Not decrementing further.")
                         

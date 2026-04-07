@@ -16,47 +16,91 @@ import io
 import json
 import traceback
 
-# ── Configure Gemini ──────────────────────────────────────────────────────────
 genai.configure(api_key=settings.GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-2.5-flash")
+
+# Use a default model, but our extraction logic will try fallbacks
+DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 
 # ── Extraction prompt ─────────────────────────────────────────────────────────
 EXTRACTION_PROMPT = """
-You are a medical prescription parser. Carefully analyze this prescription image.
+You are a highly accurate medical prescription parser. Your task is to analyze the provided image of a medical prescription and extract all listed medications.
 
-Extract ALL medicines and return ONLY a valid JSON object in this exact format (no markdown, no extra text):
+For each medication, identify:
+1. The **name**, **strength** (e.g., 500mg), and **form** (e.g., Tablet/Capsule).
+2. The **dosage instructions** (e.g., 1 tablet twice daily after meals).
+3. The **frequency** of intake.
+
+Return the results EXCLUSIVELY as a valid JSON object. Do not include any preamble, conversational text, or markdown formatting outside of the JSON block.
+
+Expected JSON structure:
 {
   "medicines": [
     {
-      "name": "medicine name, strength and when to take — e.g. Amoxicillin 500mg after meals",
-      "frequency": "how often to take — e.g. 3 times a day, every 8 hours, twice daily"
+      "name": "Full name including strength and form (e.g., 'Amoxicillin 500mg Tablet')",
+      "frequency": "Frequency of intake (e.g., 'Twice daily', 'Every 8 hours')",
+      "dosage_instructions": "Full specific instructions (e.g., '1 tab twice daily after meals for 7 days')"
     }
   ]
 }
 
-Rules:
-- Return ONLY the JSON object, no preamble or markdown fences
-- Pack the dosage, timing, and duration into the 'name' field since that is all we store
-- If frequency is not mentioned, set it to an empty string ""
-- Extract every medicine listed
+If a field is not clear or not mentioned, use an empty string "". Ensure every distinct medication in the image is captured.
 """
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 def extract_medicines_with_gemini(image_bytes: bytes) -> list[dict]:
+    import re
     img_pil = Image.open(io.BytesIO(image_bytes))
 
-    # Convert to RGB to avoid issues with RGBA/palette PNGs
     if img_pil.mode != "RGB":
         img_pil = img_pil.convert("RGB")
 
-    response = gemini_model.generate_content([EXTRACTION_PROMPT, img_pil])
-    raw_text = response.text.strip()
-    print(f"DEBUG: Raw Gemini response: {raw_text[:500]}")  # Log first 500 chars
+    # List of models to try in order of preference
+    # Note: Our diagnostic scan confirmed these 'models/' prefixed names exist in your environment.
+    model_candidates = [
+        "models/gemini-2.5-flash", 
+        "models/gemini-2.0-flash", 
+        "models/gemini-flash-latest", 
+        "models/gemini-pro-latest"
+    ]
+    last_error = None
 
-    clean = raw_text.replace("```json", "").replace("```", "").strip()
-    data = json.loads(clean)
-    return data.get("medicines", [])
+    for model_name in model_candidates:
+        try:
+            print(f"DEBUG: Attempting extraction with model: {model_name}")
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([EXTRACTION_PROMPT, img_pil])
+            raw_text = response.text.strip()
+            print(f"DEBUG: Raw Gemini response from {model_name}: {raw_text}") 
+
+            # Robust JSON extraction using regex
+            json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                data = json.loads(json_str)
+                return data.get("medicines", [])
+            else:
+                print(f"DEBUG: No JSON found in response from {model_name}. Trying next model...")
+                continue
+                
+        except Exception as e:
+            last_error = e
+            print(f"DEBUG: Model {model_name} failed: {str(e)}")
+            continue
+
+    # If we get here, all models failed
+    print("ERROR: All Gemini models failed or returned no usable data.")
+    try:
+        print("DEBUG: Listing available models for diagnostic purposes:")
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                print(f" - {m.name} (supports generateContent)")
+    except Exception as list_err:
+        print(f"DEBUG: Could not list models: {list_err}")
+
+    if last_error:
+        raise last_error
+    return []
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -137,10 +181,17 @@ def process_prescription(request):
         for item in extracted:
             name      = item.get('name') or 'Unknown'
             frequency = item.get('frequency') or ''
+            dosage    = item.get('dosage_instructions') or ''
+            
+            # Combine details into name if that's what the UI expects, 
+            # or keep them separate if the model supports it. 
+            # Current model seems to store name, frequency.
+            # We'll prepend dosage to the name for better detail in the UI.
+            full_name_detail = f"{name} ({dosage})".strip(" ()") if dosage else name
 
             medicine = Medicine(
                 prescription=prescription,
-                name=name,
+                name=full_name_detail,
                 frequency=frequency,
                 bbox_x=0,
                 bbox_y=0,
@@ -149,7 +200,7 @@ def process_prescription(request):
                 confidence=0.0,
             )
             medicine.save()
-            print(f"DEBUG: Saved Medicine ID: {medicine.id} — {name}")
+            print(f"DEBUG: Saved Medicine ID: {medicine.id} — {full_name_detail}")
 
             medicines_data.append({
                 'id':         medicine.id,
@@ -208,12 +259,15 @@ def update_medicine(request, medicine_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_prescription_medicines(request, prescription_id):
+    print(f"--- GET PRESCRIPTION MEDICINES (ID: {prescription_id}) STARTED ---")
     try:
         prescription = Prescription.objects.get(id=prescription_id)
         medicines    = Medicine.objects.filter(prescription=prescription)
+        print(f"DEBUG: Found {medicines.count()} medicine(s) for Prescription ID: {prescription_id}")
         serializer   = MedicineSerializer(medicines, many=True)
         return Response(serializer.data)
     except Prescription.DoesNotExist:
+        print(f"ERROR: Prescription ID {prescription_id} not found.")
         return Response({'error': 'Prescription not found.'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         print(f"ERROR: get_prescription_medicines: {e}")

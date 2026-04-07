@@ -1,4 +1,3 @@
-
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework import status
@@ -13,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import MedicationEvent
 from .serializers import MedicationEventSerializer
-from .notifications import send_expo_push_notification
+from .notifications import send_expo_push_notification, check_and_send_low_stock_notification
 from datetime import datetime
 from datetime import timedelta
 from django.utils import timezone
@@ -317,3 +316,59 @@ def dispense_pill(medication, slot):
         return False
 
 
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def dispense_and_record(request):
+    """
+    Endpoint that triggers physical dispensing and records the event.
+    """
+    medication_id = request.data.get('medication_id')
+    amount = request.data.get('amount', 1) # Support custom amount if passed
+    
+    if not medication_id:
+        return Response({"detail": "Medication ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        medication = Medication.objects.get(id=medication_id, user=request.user)
+        
+        # 1. Trigger the physical dispenser
+        dispense_success = dispense_pill(medication, medication.dispenser_slot)
+        
+        if not dispense_success:
+            return Response({
+                "detail": "Failed to communicate with the dispenser device. Check if the dispenser is online."
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # 2. Record the event and update stock
+        stock_before = medication.stock
+        stock_after = max(0, stock_before - int(amount))
+            
+        medication.stock = stock_after
+        medication.save()
+        
+        # Create an event for tracking
+        MedicationEvent.objects.create(
+            medication=medication,
+            amount=amount,
+            success=True,
+            stock_before=stock_before,
+            stock_after=stock_after,
+            esp32_response="Manual dispense via app (api/dispense-and-record)"
+        )
+        
+        # 3. Check for low stock alert
+        check_and_send_low_stock_notification(medication)
+        
+        logger.info(f"Medication {medication.name} (ID: {medication.id}) dispensed successfully. New stock: {stock_after}")
+        
+        return Response({
+            "detail": "Medication dispensed and recorded successfully.",
+            "stock_after": stock_after
+        }, status=status.HTTP_200_OK)
+
+    except Medication.DoesNotExist:
+        return Response({"detail": "Medication not found."}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error in dispense_and_record: {e}", exc_info=True)
+        return Response({"detail": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

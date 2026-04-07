@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import MedicationViewSet, MedicationEventViewSet, register_esp32, save_push_token
+from .views import MedicationViewSet, MedicationEventViewSet, register_esp32, save_push_token, dispense_and_record
 
 router = DefaultRouter()
 router.register(r'medications', MedicationViewSet, basename='medication')
@@ -10,4 +10,5 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path("devices/register/", register_esp32),
     path('api/save-push-token/', save_push_token, name='save_push_token'),
+    path('api/dispense-and-record/', dispense_and_record, name='dispense_and_record'),
 ]

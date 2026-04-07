@@ -1,4 +1,5 @@
-# schedules/notifications.py
+from django.core.mail import send_mail
+from django.conf import settings
 import requests
 import logging
 
@@ -8,8 +9,6 @@ def send_expo_push_notification(expo_push_token, title, message):
     """
     Send a push notification via the Expo Push API.
     """
-
-    # ── 1. Validate token before sending ─────────────────────────────────────
     if not expo_push_token:
         logger.warning("send_expo_push_notification: No token provided. Skipping.")
         return None
@@ -25,57 +24,58 @@ def send_expo_push_notification(expo_push_token, title, message):
         "title": title,
         "body": message,
         "priority": "high",
-        "_contentAvailable": True,   # ensures delivery on iOS background
+        "_contentAvailable": True,
     }
     headers = {
         "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate",   # required by Expo
+        "Accept-Encoding": "gzip, deflate",
         "Content-Type": "application/json",
     }
 
     try:
-        # ── 2. Add timeout — your original had none, causing Celery to hang ──
         response = requests.post(url, json=payload, headers=headers, timeout=10)
-        response.raise_for_status()   # raises on 4xx/5xx HTTP errors
-
+        response.raise_for_status()
         result = response.json()
         logger.info(f"Expo push API response: {result}")
-
-        # ── 3. Check Expo-level errors inside the response body ───────────────
-        # HTTP 200 doesn't mean success — Expo puts errors inside the JSON
-        data = result.get("data", {})
-        status = data.get("status")
-
-        if status == "error":
-            error_msg = data.get("message", "Unknown error")
-            error_detail = data.get("details", {}).get("error", "")
-
-            logger.error(f"Expo push notification failed — status: error, message: {error_msg}, detail: {error_detail}")
-
-            # Handle specific Expo error codes
-            if error_detail == "DeviceNotRegistered":
-                logger.warning(f"Token {expo_push_token} is no longer registered. Consider removing it from DB.")
-            elif error_detail == "InvalidCredentials":
-                logger.error("Expo push credentials are invalid. Check your EAS project config.")
-            elif error_detail == "MessageTooBig":
-                logger.error("Push notification payload is too large.")
-            elif error_detail == "MessageRateExceeded":
-                logger.warning("Push notification rate limit hit. Consider batching.")
-
-        elif status == "ok":
-            logger.info(f"Push notification sent successfully to {expo_push_token}")
-
         return result
-
-    except requests.exceptions.Timeout:
-        logger.error("send_expo_push_notification: Request timed out after 10s.")
-        return None
-    except requests.exceptions.ConnectionError:
-        logger.error("send_expo_push_notification: Could not connect to Expo push service. Check internet.")
-        return None
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"send_expo_push_notification: HTTP error — {e.response.status_code}: {e.response.text}")
-        return None
     except Exception as e:
-        logger.error(f"send_expo_push_notification: Unexpected error — {e}", exc_info=True)
+        logger.error(f"send_expo_push_notification: Error — {e}", exc_info=True)
         return None
+
+def check_and_send_low_stock_notification(medication):
+    """
+    Checks if medication stock is below threshold and sends email/push alerts.
+    """
+    if medication.stock <= medication.reminder:
+        user = medication.user
+        profile = getattr(user, 'profile', None)
+        
+        # 1. Send Email
+        try:
+            subject = f"Low Stock Alert: Your {medication.name} is running low!"
+            message = (
+                f"Hi {user.username},\n\n"
+                f"Your medication '{medication.name}' is running low!\n\n"
+                f"Current Stock: {medication.stock}\n"
+                f"Reminder Threshold: {medication.reminder}\n\n"
+                f"Please refill your medication soon to ensure you don't run out.\n\n"
+                f"Best regards,\nYour Medimate App"
+            )
+            send_mail(
+                subject, message, settings.DEFAULT_FROM_EMAIL,
+                [user.email], fail_silently=False,
+            )
+            logger.info(f"Sent low stock email for {medication.name} to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send low stock email: {e}")
+
+        # 2. Send Push Notification
+        try:
+            expo_token = getattr(profile, 'expo_push_token', None)
+            if expo_token:
+                push_title = f"⚠️ Low Stock: {medication.name}"
+                push_body = f"Only {medication.stock} left (threshold: {medication.reminder}). Please refill soon!"
+                send_expo_push_notification(expo_token, push_title, push_body)
+                logger.info(f"Sent low stock push notification for {medication.name} to {user.username}")
+        except Exception as e:
+            logger.error(f"Failed to send low stock push notification: {e}")
